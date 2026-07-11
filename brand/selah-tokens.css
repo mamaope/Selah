@@ -1,0 +1,143 @@
+/* ─────────────────────────────────────────────────────────────
+   Selah — design tokens
+   v2 · 11 July 2026 · Direction B "Verified"
+
+   Emerald on white. Light-first, dark available.
+   Space Grotesk + JetBrains Mono. No serif. One accent, two signals.
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: light dark;
+
+  /* ─── INK — text. Near-black with a whisper of green, so it
+         sits with the accent instead of fighting it. Never #000. ─── */
+  --ink-900: #0A0F0D;   /* primary text, wordmark */
+  --ink-700: #3D4642;   /* secondary text */
+  --ink-500: #6B7570;   /* muted, captions */
+  --ink-400: #9AA39E;   /* hints, placeholders */
+  --ink-300: #C4CBC7;   /* disabled */
+
+  /* ─── SURFACE — crisp, not cream. Reads clean on cheap screens. ─── */
+  --surface-0:  #F7F9F8;  /* page background */
+  --surface-1:  #EFF2F1;  /* subtle fill, metric cards */
+  --surface-2:  #FFFFFF;  /* cards, panels */
+  --border:     #E2E7E5;  /* hairline — 1px */
+  --border-str: #C9D1CD;  /* hover, emphasis */
+
+  /* ─── EMERALD — the one accent.
+         Also means VERIFIED · Confidence A · money owed TO you. ─── */
+  --emerald-900: #00543F;  /* text on emerald-50/100 */
+  --emerald-700: #007A5C;  /* pressed */
+  --emerald-600: #00A37A;  /* ★ PRIMARY — the mark, key actions */
+  --emerald-500: #16BE90;  /* hover, reversed mark */
+  --emerald-100: #D2F2E8;  /* fills */
+  --emerald-50:  #ECFAF5;  /* subtlest fill */
+
+  /* ─── AMBER — caution. Confidence B/C.
+         A conflict with an official source. An approaching deadline. ─── */
+  --amber-700: #A85C00;
+  --amber-600: #D97706;
+  --amber-100: #FDEBCF;
+  --amber-50:  #FEF7EC;
+
+  /* ─── RED — stop. Confidence F (a refusal). Arrears. Money you OWE. ─── */
+  --red-700: #A81F1F;
+  --red-600: #DC2626;
+  --red-100: #FBD9D9;
+  --red-50:  #FEF0F0;
+
+  /* ─── TYPE — sans and mono. No serif. ─── */
+  --font-ui:  'Space Grotesk', 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --font-num: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+
+  --size-display: 40px;
+  --size-title:   24px;
+  --size-heading: 18px;
+  --size-body:    15px;
+  --size-small:   13px;
+  --size-caption: 11px;
+
+  --weight-regular: 400;
+  --weight-medium:  500;   /* the heaviest weight in the UI. Never 600+. */
+
+  --tracking-tight: -0.02em;  /* headlines and the wordmark */
+  --tracking-wide:   0.05em;  /* small caps labels only */
+
+  /* ─── STRUCTURE ─── */
+  --radius-sm:   6px;
+  --radius:      8px;   /* controls */
+  --radius-card: 12px;  /* cards */
+  --radius-mark: 2px;   /* the logo bars */
+
+  /* No gradients. No shadows beyond these two, and use them sparingly. */
+  --shadow-card:  0 1px 2px rgba(10, 15, 13, 0.04);
+  --shadow-float: 0 8px 24px rgba(10, 15, 13, 0.10);
+}
+
+/* ─── DARK — available, not the identity. ─── */
+[data-theme="dark"] {
+  --ink-900: #F2F5F4;
+  --ink-700: #C2CAC7;
+  --ink-500: #8B9591;
+  --ink-400: #626C68;
+  --ink-300: #454E4A;
+
+  --surface-0:  #0A0F0D;
+  --surface-1:  #131A17;
+  --surface-2:  #1A231F;
+  --border:     #26302B;
+  --border-str: #3A453F;
+
+  --emerald-900: #A8EBD4;
+  --emerald-700: #16BE90;
+  --emerald-600: #16BE90;
+  --emerald-500: #3ED9AC;
+  --emerald-100: #00543F;
+  --emerald-50:  #00382A;
+
+  --amber-700: #FBBF5B;
+  --amber-600: #F59E0B;
+  --amber-100: #5C3200;
+  --amber-50:  #3D2100;
+
+  --red-700: #F49B9B;
+  --red-600: #EF4444;
+  --red-100: #5C1616;
+  --red-50:  #3D0F0F;
+
+  --shadow-card:  0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   THE RULE THAT MATTERS MOST
+
+   Every number is monospaced, tabular, and right-aligned.
+   Decimals stack. This is a ledger, not a blog.
+
+   Set a tax computation in a proportional font and it reads
+   like a blog post. Set it in mono and it reads like a fact.
+   ───────────────────────────────────────────────────────────── */
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  text-align: right;
+  letter-spacing: 0;
+}
+
+/* ─── The trust components ─── */
+.badge-a { background: var(--emerald-100); color: var(--emerald-900); }  /* primary law */
+.badge-b { background: var(--surface-1);   color: var(--ink-700);     }  /* corroborated */
+.badge-c { background: var(--amber-100);   color: var(--amber-700);   }  /* uncertain — do not display a number */
+.badge-f { background: var(--red-100);     color: var(--red-700);     }  /* unknown — refuse */
+
+.stamp {                     /* verified 11 jul 2026 */
+  font-family: var(--font-num);
+  font-size: var(--size-caption);
+  text-transform: lowercase;
+  color: var(--ink-500);
+}
+
+.refusal { border: 1px solid var(--red-600); border-radius: var(--radius-card); }
+.conflict { border: 1px solid var(--amber-600); border-radius: var(--radius-card); }

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0A0F0D">
+<script src="assets/theme.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selah — For organisations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/home.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html">
+    <svg viewBox="0 0 40 56" width="18" height="25" aria-hidden="true">
+      <rect x="6" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+      <rect x="24" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+    </svg><span>Selah</span>
+  </a>
+  <nav class="topnav">
+    <a href="calculators.html#all">Calculators</a>
+    <a href="calculators.html#calc=clock">What's coming</a>
+    <a href="individual.html">For individuals</a>
+    <a href="organisation.html">For organisations</a>
+  </nav>
+</header>
+
+<main class="home">
+  <section class="hero-home" style="border-bottom:none">
+    <p class="eyebrow">Phase 3 · not built yet</p>
+    <h1>For organisations</h1>
+    <p class="lede-home">Your company. Your directors. Your staff.</p>
+
+    <div class="card" style="max-width:560px;margin-top:28px">
+      <h2 style="font-size:17px;font-weight:500;margin-bottom:14px">What it will do</h2>
+      <ul class="door-list"><li><strong>Payroll</strong> — PAYE, NSSF, Local Service Tax. Computed, not typed.</li>
+        <li><strong>Invoicing and EFRIS.</strong> Every tax event in your business is born at an invoice.</li>
+        <li><strong>Tax Clearance readiness</strong> — including the director trap that no accountant checks.</li>
+        <li><strong>The audit pack</strong>, with the exceptions found in March — not by your auditor in October.</li></ul>
+      <div class="alert alert-info" style="margin-top:16px">A spotless company is refused its certificate because one director has not filed their own personal return. It is invisible from inside your books. You find out when you lose the tender.</div>
+    </div>
+
+    <div class="card" style="max-width:560px;margin-top:14px;border-color:var(--emerald-600)">
+      <h2 style="font-size:17px;font-weight:500;margin-bottom:6px">We are building this now</h2>
+      <p style="font-size:14px;color:var(--ink-700);line-height:1.6;margin-bottom:14px">
+        Leave a phone number and we will tell you when it opens. We will not send you anything else.
+      </p>
+      <label>Phone number</label>
+      <input type="tel" id="phone" placeholder="+256 7xx xxx xxx" style="width:100%;font-family:var(--font-num);font-size:15px;padding:9px 11px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+      <button class="cta" style="margin-top:12px" data-action="joined">Tell me when it opens</button>
+      <p id="ok" hidden style="font-size:13.5px;color:var(--emerald-900);background:var(--emerald-50);border:1px solid var(--emerald-100);border-radius:var(--radius);padding:11px 13px;margin-top:12px">
+        Noted. We will only contact you about this.
+      </p>
+      <p class="hint" style="margin-top:12px">
+        <strong>Not yet stored anywhere.</strong> Uganda's Data Protection and Privacy Act treats financial data as
+        special personal data, and we will not collect a single number until our PDPO registration is complete
+        and our consent architecture is right. This form is a placeholder, and it is honest about that.
+      </p>
+    </div>
+
+    <p style="margin-top:26px">
+      <a class="btn-primary" href="calculators.html">Meanwhile — find out what applies to you →</a>
+    </p>
+  </section>
+</main>
+
+<footer class="foot"><div class="foot-bar"><p>
+  General information, not tax advice. Uganda's tax law changes every 1 July. Rules verified 11 July 2026.
+</p></div></footer>
+</body>
+</html>

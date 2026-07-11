@@ -1,0 +1,112 @@
+/* Selah — the home page.
+   Extends tokens.css. Same palette, same type, same discipline:
+   no gradients, no shadows, hairline borders, colour is semantic. */
+
+.topnav { display: flex; align-items: center; gap: 22px; }
+.topnav a { font-size: 14px; color: var(--ink-700); text-decoration: none; }
+.topnav a:hover { color: var(--emerald-700); }
+@media (max-width: 700px) { .topnav a { display: none; } }
+
+.home { max-width: 1080px; margin: 0 auto; padding: 0 24px 40px; }
+
+.sec-lab { font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-400); margin-bottom: 12px; }
+
+/* ── hero ── */
+.hero-home { padding: 72px 0 64px; border-bottom: 1px solid var(--border); }
+.eyebrow { font-family: var(--font-num); font-size: 11px; color: var(--ink-500);
+  text-transform: lowercase; margin-bottom: 22px; }
+.hero-home h1 { font-size: 54px; line-height: 1.08; letter-spacing: -0.035em;
+  font-weight: 500; margin-bottom: 22px; }
+.lede-home { font-size: 19px; line-height: 1.6; color: var(--ink-700); max-width: 620px; }
+.lede-home strong { color: var(--ink-900); font-weight: 500; }
+.lede-home em { font-style: italic; }
+.hero-cta { display: flex; align-items: center; gap: 16px; margin-top: 30px; flex-wrap: wrap; }
+.btn-primary {
+  display: inline-block; background: var(--emerald-600); color: var(--on-emerald);
+  font-size: 15px; font-weight: 500; padding: 13px 26px;
+  border-radius: var(--radius); text-decoration: none;
+}
+.btn-primary:hover { background: var(--emerald-700); color: var(--on-emerald); }
+.btn-primary.lg { font-size: 16px; padding: 15px 34px; }
+.btn-note { font-size: 13px; color: var(--ink-500); }
+@media (max-width: 640px) { .hero-home h1 { font-size: 38px; } .lede-home { font-size: 17px; } }
+
+/* ── the proof — the whole argument, in four cards ── */
+.proof { padding: 64px 0; border-bottom: 1px solid var(--border); }
+.proof h2 { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; margin-bottom: 26px; }
+.proof-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.proof-card { background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-card); padding: 18px; }
+/* Amber = a conflict with an official source. Semantic, not decorative. */
+.proof-card.hl { border-color: var(--amber-600); background: var(--amber-50); }
+.pc-who { font-size: 14px; font-weight: 500; color: var(--ink-900); margin-bottom: 7px; }
+.proof-card.hl .pc-who { color: var(--amber-700); }
+.pc-what { font-size: 13.5px; color: var(--ink-700); line-height: 1.6; }
+.proof-card.hl .pc-what { color: var(--amber-700); }
+.pc-link { display: inline-block; margin-top: 10px; font-size: 12.5px;
+  color: var(--emerald-700); text-decoration: none; }
+.pc-link:hover { text-decoration: underline; }
+.proof-close { margin-top: 26px; font-size: 18px; line-height: 1.6;
+  color: var(--ink-700); max-width: 700px; }
+.proof-close strong { color: var(--ink-900); font-weight: 500; }
+
+/* ── the four promises ── */
+.promises { padding: 64px 0; border-bottom: 1px solid var(--border); }
+.prom-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 26px; }
+.prom-n { font-family: var(--font-num); font-size: 12px; color: var(--emerald-600); margin-bottom: 9px; }
+.prom h3 { font-size: 17px; font-weight: 500; margin-bottom: 7px; letter-spacing: -0.01em; }
+.prom p { font-size: 14px; color: var(--ink-700); line-height: 1.6; }
+
+/* ── the three doors ── */
+.doors { padding: 64px 0; border-bottom: 1px solid var(--border); }
+.doors h2 { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; margin-bottom: 26px; }
+.door-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.door {
+  display: flex; flex-direction: column;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-card); padding: 22px; text-decoration: none; color: inherit;
+}
+.door:hover { border-color: var(--border-str); }
+.door.live { border-color: var(--emerald-600); }
+.door.live:hover { background: var(--emerald-50); }
+.door.soon { background: var(--surface-1); }
+.door-badge { display: inline-block; font-family: var(--font-num); font-size: 10px;
+  padding: 3px 8px; border-radius: 5px; background: var(--surface-1); color: var(--ink-500); }
+.door-badge.live { background: var(--emerald-100); color: var(--emerald-900); }
+.door-top h3 { font-size: 20px; font-weight: 500; margin: 12px 0 3px; letter-spacing: -0.01em; }
+.door-sub { font-size: 12.5px; color: var(--ink-500); margin-bottom: 14px; }
+.door-p { font-size: 14px; color: var(--ink-700); line-height: 1.6; margin-bottom: 14px; }
+.door-list { list-style: none; margin-bottom: 18px; }
+.door-list li { font-size: 13.5px; color: var(--ink-700); line-height: 1.5; padding: 4px 0 4px 16px; position: relative; }
+.door-list li::before { content: "·"; position: absolute; left: 4px; color: var(--emerald-600); }
+.door-go { margin-top: auto; font-size: 14px; font-weight: 500; color: var(--emerald-700); }
+.door.soon .door-go { color: var(--ink-500); }
+
+/* ── the sentence nobody else can say ── */
+.killer { padding: 64px 0; border-bottom: 1px solid var(--border); }
+.killer blockquote {
+  font-size: 26px; line-height: 1.45; font-weight: 500; letter-spacing: -0.02em;
+  color: var(--ink-900); max-width: 760px; margin-bottom: 22px;
+  padding-left: 20px; border-left: 3px solid var(--emerald-600);
+}
+.killer-p { font-size: 15.5px; line-height: 1.7; color: var(--ink-700);
+  max-width: 700px; margin-bottom: 12px; }
+.killer-p strong { color: var(--ink-900); font-weight: 500; }
+
+/* ── close ── */
+.close { padding: 72px 0; text-align: center; }
+.close h2 { font-size: 32px; font-weight: 500; letter-spacing: -0.025em; margin-bottom: 10px; }
+.close p { font-size: 16px; color: var(--ink-700); margin-bottom: 26px; }
+
+/* ── foot ── */
+.foot { border-top: 1px solid var(--border); background: var(--surface-2); }
+.foot-grid { max-width: 1080px; margin: 0 auto; padding: 44px 24px 32px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 32px; }
+.foot-h { font-size: 12px; font-weight: 500; color: var(--ink-900); margin-bottom: 10px; }
+.foot a { display: block; font-size: 13.5px; color: var(--ink-700); text-decoration: none; padding: 3px 0; }
+.foot a:hover { color: var(--emerald-700); }
+.foot-p { font-size: 13px; color: var(--ink-500); line-height: 1.6; margin-bottom: 5px; }
+.foot-bar { border-top: 1px solid var(--border); }
+.foot-bar p { max-width: 1080px; margin: 0 auto; padding: 18px 24px;
+  font-size: 12px; color: var(--ink-500); line-height: 1.6; }

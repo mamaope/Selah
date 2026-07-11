@@ -1,0 +1,296 @@
+/* Selah — v2 "Verified". Emerald on white. Space Grotesk + JetBrains Mono. */
+
+:root {
+  --ink-900:#0A0F0D; --ink-700:#3D4642; --ink-500:#6B7570; --ink-400:#9AA39E; --ink-300:#C4CBC7;
+  --surface-0:#F7F9F8; --surface-1:#EFF2F1; --surface-2:#FFFFFF;
+  --border:#E2E7E5; --border-str:#C9D1CD;
+  --emerald-900:#00543F; --emerald-700:#007A5C; --emerald-600:#00A37A; --emerald-500:#16BE90;
+  --emerald-100:#D2F2E8; --emerald-50:#ECFAF5;
+  --amber-700:#A85C00; --amber-600:#D97706; --amber-100:#FDEBCF; --amber-50:#FEF7EC;
+  --red-700:#A81F1F; --red-600:#DC2626; --red-100:#FBD9D9; --red-50:#FEF0F0;
+  --font-ui:'Space Grotesk','Inter',system-ui,sans-serif;
+  --font-num:'JetBrains Mono','IBM Plex Mono',ui-monospace,monospace;
+  --radius:8px; --radius-card:12px;
+
+  /* What goes ON the accent. NOT always white.
+     Light: emerald-600 is #00A37A — white on it is 4.6:1. Fine.
+     Dark:  emerald-600 is #16BE90 — bright mint. White on it is 1.9:1. Unreadable.
+     So the foreground is a token, not a hardcode. */
+  --on-emerald: #FFFFFF;
+}
+[data-theme="dark"] {
+  --ink-900:#F2F5F4; --ink-700:#C2CAC7; --ink-500:#8B9591; --ink-400:#79837E; --ink-300:#545E59;
+  --surface-0:#0A0F0D; --surface-1:#131A17; --surface-2:#1A231F;
+  --border:#26302B; --border-str:#3A453F;
+  --emerald-900:#A8EBD4; --emerald-700:#16BE90; --emerald-600:#16BE90; --emerald-500:#3ED9AC;
+  --emerald-100:#00543F; --emerald-50:#00382A;
+  --amber-700:#FBBF5B; --amber-600:#F59E0B; --amber-100:#5C3200; --amber-50:#3D2100;
+  --red-700:#F49B9B; --red-600:#EF4444; --red-100:#5C1616; --red-50:#3D0F0F;
+
+  /* Dark ink on the bright mint. 10.4:1. Readable. */
+  --on-emerald: #0A0F0D;
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:var(--font-ui); font-size:15px; line-height:1.6;
+  color:var(--ink-900); background:var(--surface-0);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ─── THE RULE THAT MATTERS MOST ───
+   Every number is monospaced, tabular, right-aligned. Decimals stack.
+   Set a tax computation in a proportional font and it reads like a blog post.
+   Set it in mono and it reads like a fact. */
+.num { font-family:var(--font-num); font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1; }
+.num-r { text-align:right; }
+
+.top {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:16px 24px; border-bottom:1px solid var(--border); background:var(--surface-2);
+  position:sticky; top:0; z-index:10;
+}
+.brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--ink-900); }
+.brand span { font-size:19px; font-weight:500; letter-spacing:-0.02em; }
+.top-right { display:flex; align-items:center; gap:14px; }
+.stamp { font-family:var(--font-num); font-size:11px; color:var(--ink-500); text-transform:lowercase; }
+.ghost { background:none; border:1px solid var(--border-str); color:var(--ink-700);
+  border-radius:var(--radius); padding:5px 10px; cursor:pointer; font-size:14px; }
+.ghost:hover { background:var(--surface-1); }
+
+main { max-width:1080px; margin:0 auto; padding:32px 24px 64px; }
+
+.hero { margin-bottom:32px; }
+h1 { font-size:34px; font-weight:500; letter-spacing:-0.03em; line-height:1.2; margin-bottom:12px; }
+.lede { font-size:17px; color:var(--ink-700); max-width:640px; margin-bottom:20px; }
+
+.tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:24px;
+  border-bottom:1px solid var(--border); padding-bottom:12px; }
+.tabs button {
+  font-family:var(--font-ui); font-size:13.5px; font-weight:400;
+  background:none; border:1px solid transparent; color:var(--ink-500);
+  padding:7px 13px; border-radius:var(--radius); cursor:pointer;
+}
+.tabs button:hover { background:var(--surface-1); color:var(--ink-900); }
+.tabs button.active { background:var(--emerald-600); color:var(--on-emerald); font-weight:500; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   🔴 THE ATTRIBUTE IS THE SINGLE SOURCE OF TRUTH. NOT A CLASS.
+
+   This used to be:
+
+       .panel        { display: none; }
+       .panel.active { display: block; }
+
+   ...and NOTHING IN THE JAVASCRIPT EVER ADDED `.active`. The code toggles the
+   `hidden` ATTRIBUTE. So every calculator panel was display:none, permanently,
+   in every real browser. The user got a title, a sub-heading and a footer —
+   with nothing between them.
+
+   AND 167 UI TESTS PASSED THROUGHOUT, because jsdom does not apply CSS. Every
+   assertion checked `panel.hidden === false` and was perfectly satisfied while
+   the stylesheet silently overruled all of it.
+
+   Two mechanisms for one piece of state is not redundancy. It is a bug with a
+   grace period.
+
+   The `hidden` attribute now drives visibility, everywhere, and the UI test
+   loads the real stylesheets and asserts the COMPUTED display — not the
+   property the JavaScript happens to believe.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.panel          { display: block; }
+.panel[hidden]  { display: none; }
+.grid { display:grid; grid-template-columns:340px minmax(0,1fr); gap:20px; align-items:start; }
+@media (max-width:860px) { .grid { grid-template-columns:1fr; } }
+
+.card { background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--radius-card); padding:20px; }
+.card h2 { font-size:18px; font-weight:500; letter-spacing:-0.01em; margin-bottom:16px; }
+
+label { display:block; font-size:12.5px; color:var(--ink-500); margin:14px 0 5px; }
+label:first-of-type { margin-top:0; }
+label.check { display:flex; align-items:flex-start; gap:8px; font-size:13.5px; color:var(--ink-900); margin:12px 0; cursor:pointer; }
+label.check input { margin-top:3px; flex-shrink:0; }
+label.check .hint { display:block; }
+input[type=number], select {
+  width:100%; font-family:var(--font-num); font-size:15px; padding:9px 11px;
+  border:1px solid var(--border-str); border-radius:var(--radius);
+  background:var(--surface-2); color:var(--ink-900);
+}
+select { font-family:var(--font-ui); }
+input[type=number]:focus, select:focus { outline:none; border-color:var(--emerald-600);
+  box-shadow:0 0 0 3px var(--emerald-50); }
+.hint { font-size:12px; color:var(--ink-500); line-height:1.5; margin-top:8px; }
+.divider { height:1px; background:var(--border); margin:16px 0; }
+
+/* ── output ── */
+.out { display:flex; flex-direction:column; gap:12px; }
+.result { background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--radius-card); padding:20px; }
+.result .cap { font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--ink-500); margin-bottom:8px; }
+.big { display:flex; align-items:baseline; gap:9px; }
+.big .v { font-family:var(--font-num); font-variant-numeric:tabular-nums;
+  font-size:32px; font-weight:500; letter-spacing:-0.02em; }
+.big .u { font-size:13px; color:var(--ink-500); }
+.because { font-size:14px; color:var(--ink-700); margin-top:10px; line-height:1.6; }
+
+.steps { margin-top:4px; }
+.step { display:flex; justify-content:space-between; gap:16px; padding:5px 0;
+  font-family:var(--font-num); font-variant-numeric:tabular-nums; font-size:13px; color:var(--ink-700); }
+.step .t { text-align:right; white-space:nowrap; }
+.step-note { font-family:var(--font-ui); font-size:12px; color:var(--ink-500);
+  line-height:1.5; margin:0 0 8px; }
+.total { border-top:1px solid var(--border-str); margin-top:6px; padding-top:8px;
+  font-weight:500; color:var(--ink-900); }
+
+.badges { display:flex; gap:6px; flex-wrap:wrap; margin-top:14px; }
+.badge { font-family:var(--font-num); font-size:10.5px; padding:3px 8px; border-radius:6px; }
+.badge-a { background:var(--emerald-100); color:var(--emerald-900); }
+.badge-b { background:var(--surface-1);   color:var(--ink-700); }
+.badge-c { background:var(--amber-100);   color:var(--amber-700); }
+.badge-f { background:var(--red-100);     color:var(--red-700); }
+.badge-n { background:var(--surface-1);   color:var(--ink-500); }
+
+.cite { font-size:12px; color:var(--ink-500); line-height:1.55; margin-top:12px;
+  padding-top:12px; border-top:1px solid var(--border); }
+
+.alert { border-radius:var(--radius); padding:11px 13px; font-size:13.5px; line-height:1.55; }
+.alert a { color:inherit; }
+.alert-warn   { background:var(--amber-50); color:var(--amber-700); border:1px solid var(--amber-100); }
+.alert-danger { background:var(--red-50);   color:var(--red-700);   border:1px solid var(--red-100); }
+.alert-good   { background:var(--emerald-50); color:var(--emerald-900); border:1px solid var(--emerald-100); }
+.alert-info   { background:var(--surface-1); color:var(--ink-700); border:1px solid var(--border); }
+
+/* ── the refusal card — the most persuasive screen in the product ── */
+.refusal { background:var(--surface-2); border:1px solid var(--red-600);
+  border-radius:var(--radius-card); padding:20px; }
+.refusal h3 { font-size:19px; font-weight:500; margin:10px 0 12px; letter-spacing:-0.01em; }
+.refusal p { font-size:13.5px; color:var(--ink-700); line-height:1.65; margin-bottom:9px; }
+.refusal .lab { font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--ink-500); margin:14px 0 5px; }
+
+/* ── options — never a recommendation ── */
+.opt { background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--radius-card); padding:18px; }
+.opt.flag { border-color:var(--red-600); }
+.opt-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+.opt-head h3 { font-size:16px; font-weight:500; }
+.opt-head .amt { font-family:var(--font-num); font-variant-numeric:tabular-nums;
+  font-size:21px; font-weight:500; }
+.opt-head .rate { font-family:var(--font-num); font-size:11.5px; color:var(--ink-500); }
+.opt .lab { font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--ink-500); margin:13px 0 4px; }
+.opt p, .opt li { font-size:13px; color:var(--ink-700); line-height:1.6; }
+.opt ul { padding-left:17px; }
+.pill { font-size:10.5px; padding:2px 7px; border-radius:5px;
+  background:var(--red-100); color:var(--red-700); font-family:var(--font-num); }
+
+.cta { width:100%; margin-top:14px; background:var(--emerald-600); color:var(--on-emerald);
+  border:none; border-radius:var(--radius); padding:11px; font-size:14px; font-weight:500;
+  font-family:var(--font-ui); cursor:pointer; }
+.cta:hover { background:var(--emerald-700); }
+
+.check-row { display:flex; align-items:flex-start; gap:9px; padding:7px 0; font-size:13.5px; }
+.check-row .mk { flex-shrink:0; font-family:var(--font-num); font-size:13px; }
+.pass .mk { color:var(--emerald-600); }
+.fail .mk { color:var(--red-600); }
+.fail { color:var(--ink-500); }
+
+footer { max-width:1080px; margin:0 auto; padding:28px 24px 56px;
+  border-top:1px solid var(--border); }
+footer p { font-size:12.5px; color:var(--ink-500); line-height:1.65; margin-bottom:7px; }
+footer strong { color:var(--ink-700); font-weight:500; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE GUIDE — plain questions, no tax words
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.quiz { max-width: 620px; }
+.q { padding: 16px 0; border-bottom: 1px solid var(--border); }
+.q:first-child { padding-top: 0; }
+.q:last-of-type { border-bottom: none; }
+.qt { font-size: 16px; font-weight: 500; color: var(--ink-900); margin-bottom: 4px; }
+.qh { font-size: 13px; color: var(--ink-500); line-height: 1.5; margin-bottom: 10px; }
+.qopts { display: flex; gap: 8px; margin-top: 10px; }
+.qbtn {
+  font-family: var(--font-ui); font-size: 14px; padding: 9px 20px;
+  border: 1px solid var(--border-str); background: var(--surface-2);
+  color: var(--ink-700); border-radius: var(--radius); cursor: pointer;
+}
+.qbtn:hover { border-color: var(--emerald-600); color: var(--ink-900); }
+.qbtn.on { background: var(--emerald-600); border-color: var(--emerald-600); color: var(--on-emerald); font-weight: 500; }
+.q input[type=number] { margin-top: 6px; }
+.cta:disabled { background: var(--ink-300); cursor: not-allowed; }
+.back { margin-bottom: 16px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   YOUR TAXES — what applies, WHY, WHEN, and what if you don't
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ob {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-card); padding: 20px; margin-bottom: 12px;
+}
+/* Colour is SEMANTIC. Emerald = money back. Red = you are on the hook. */
+.ob.sev-red   { border-color: var(--red-600); }
+.ob.sev-green { border-color: var(--emerald-600); }
+.ob.sev-amber { border-color: var(--amber-600); }
+
+.ob-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; }
+.ob-head h3 { font-size: 18px; font-weight: 500; letter-spacing: -0.01em; }
+.ob-sev { display: inline-block; font-size: 11px; margin-top: 5px; padding: 2px 8px; border-radius: 5px;
+  background: var(--surface-1); color: var(--ink-500); }
+.sev-red   .ob-sev { background: var(--red-100);     color: var(--red-700); }
+.sev-green .ob-sev { background: var(--emerald-100); color: var(--emerald-900); }
+.sev-amber .ob-sev { background: var(--amber-100);   color: var(--amber-700); }
+
+.ob-due { text-align: right; flex-shrink: 0; }
+.ob-date { font-family: var(--font-num); font-size: 13px; font-weight: 500; color: var(--ink-900); white-space: nowrap; }
+.ob-days { font-family: var(--font-num); font-size: 11px; color: var(--ink-500); margin-top: 2px; }
+.sev-red .ob-days { color: var(--red-700); }
+
+.ob-lab { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--ink-400); margin: 12px 0 3px; }
+.ob-p { font-size: 14px; color: var(--ink-700); line-height: 1.6; }
+/* "Why it applies to YOU" is the sentence the whole product exists to say. */
+.ob-why  { color: var(--ink-900); font-weight: 500; }
+.ob-miss { color: var(--red-700); }
+
+.ob-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.link { background: none; border: none; padding: 0; margin-left: auto;
+  font-family: var(--font-ui); font-size: 13px; font-weight: 500;
+  color: var(--emerald-700); cursor: pointer; }
+.link:hover { text-decoration: underline; }
+
+@media (max-width: 560px) {
+  .ob-head { flex-direction: column; }
+  .ob-due { text-align: left; }
+  .qopts { flex-direction: column; }
+  .qbtn { width: 100%; }
+}
+
+/* ─── The two blocks that carry the honesty. Added 11 July 2026. ───────────────
+   `.pending` — a law that is SIGNED BUT NOT IN FORCE. Amber, because it is a
+   conflict with what everyone else is telling the user, not an error.
+   `.cannot`  — what we cannot tell you. Not a disclaimer. A list of the questions
+   nobody has answered. It is the most valuable block on the page and it should
+   not look like small print. */
+.result.pending {
+  border-color: var(--amber-600);
+  background: var(--amber-50);
+}
+.result.pending .cap,
+.result.pending .because,
+.result.pending .step-note { color: var(--amber-700); }
+.result.pending .step { border-color: var(--amber-100); }
+
+.result.cannot {
+  border-left: 3px solid var(--ink-500);
+}
+.result.cannot .ob-p {
+  font-size: 13.5px; line-height: 1.65; color: var(--ink-700);
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.result.cannot .ob-p:last-child { border-bottom: none; }

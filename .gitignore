@@ -1,0 +1,78 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# SELAH — what does NOT go in the repository
+#
+# Two principles, and the second one matters more than it looks:
+#
+#   1. NEVER COMMIT A SECRET. Obvious, and still the most common way a company
+#      like this one destroys itself. We will hold Ugandan taxpayers' financial
+#      data. A leaked key is not an incident; it is the end.
+#
+#   2. 🔴 COMMIT EVERYTHING NEEDED TO REPRODUCE THE TESTS.
+#      package.json and package-lock.json are NOT noise — they are how a stranger
+#      (or you, in six months, on a new laptop) runs `npm test` and gets the same
+#      408 assertions. An earlier .gitignore excluded them. Anyone cloning this
+#      repo could not have run a single test.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── secrets. Never. ───────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*
+secrets*
+*_rsa
+*_ed25519
+
+# 🔴 And never a real taxpayer's data. Not one file, not "just for testing".
+# Uganda's DPPA s.9(1) makes financial data SPECIAL PERSONAL DATA — processing is
+# PROHIBITED BY DEFAULT, and a digital lender's DIRECTOR was personally convicted
+# on 10 July 2025 for failing to register with the PDPO.
+#
+# There is no such thing as a test file with a real TIN in it.
+client-data/
+*-CLIENT-*.xlsx
+*-CLIENT-*.csv
+health-check/completed/
+
+# ── dependencies and build artefacts ──────────────────────────────────────────
+node_modules/
+.cache/
+dist/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+ms-playwright/
+
+# ── OS and editor noise ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ── the raw image drop ────────────────────────────────────────────────────────
+# 44 MB of unprocessed source photography. The PROCESSED, compressed images that
+# the site actually serves live in platform/web/assets/images/ and ARE committed.
+#
+# 🔴 AND BEFORE ANY OF THESE GO LIVE: we do not know that we have the rights to
+# them. See platform/web/assets/images/README.md. We are building a compliance
+# company; being sued over an unlicensed photograph would be a spectacularly
+# stupid way to prove we do not practise what we sell.
+images/
+
+# ── scratch ───────────────────────────────────────────────────────────────────
+*.tmp
+*.tmp.js
+*.bak
+.e.tmp
+.t.tmp

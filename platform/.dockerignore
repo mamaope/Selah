@@ -1,0 +1,17 @@
+# Keep the build context tiny and the image clean.
+node_modules/
+package.json
+package-lock.json
+.git/
+.gitignore
+README.md
+*.md
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 🔴 Never bake a secret into an image.
+.env
+.env.*
+*.pem
+*.key

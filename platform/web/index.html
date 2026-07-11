@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0A0F0D">
+<script src="assets/theme.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selah — pause, and know where you stand</title>
+<meta name="description" content="Uganda's tax rules, encoded correctly. Find out which taxes apply to you, why, and when. Free. Every number shows its working.">
+<meta property="og:title" content="Selah — pause, and know where you stand">
+<meta property="og:description" content="Which taxes apply to you, why, and when. Uganda's tax rules, encoded correctly.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/home.css">
+<link rel="stylesheet" href="assets/visuals.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="index.html">
+    <svg viewBox="0 0 40 56" width="18" height="25" aria-hidden="true">
+      <rect x="6" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+      <rect x="24" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+    </svg>
+    <span>Selah</span>
+  </a>
+  <nav class="topnav">
+    <a href="calculators.html#all">Calculators</a>
+    <a href="calculators.html#calc=clock">What's coming</a>
+    <a href="individual.html">For individuals</a>
+    <a href="organisation.html">For organisations</a>
+    <button id="theme" class="ghost" aria-label="Toggle theme">◐</button>
+  </nav>
+</header>
+
+<main class="home">
+
+  <!-- ═══════════════ HERO — the image IS the product ═══════════════ -->
+  <section class="hero-home">
+    <div class="grid-bg" aria-hidden="true"></div>
+    <div class="hero-split">
+
+      <div>
+        <p class="eyebrow">uganda · fy2026/27 · verified 11 july 2026</p>
+        <h1>Pause — and know<br>where you stand.</h1>
+        <p class="lede-home">
+          Most Ugandans don't pay the wrong tax. They pay <em>nothing</em> —
+          because nobody ever told them the tax existed. And when they do ask,
+          <strong>URA's own website, PwC and the Big Four are wrong</strong> — we can show you where.
+          <strong>Answer a few plain questions. We'll tell you which taxes apply to you, why, and when.</strong>
+        </p>
+        <div class="hero-cta">
+          <a class="btn-primary" href="calculators.html">Find out what applies to me →</a>
+          <span class="btn-note">Free. No sign-up. No tax words.</span>
+        </div>
+      </div>
+
+      <div>
+        <!-- Not an illustration. The actual output, with its actual citation. -->
+        <div class="trace" role="img" aria-label="A Selah calculation showing PAYE of UGX 188,250, with the working and the citation to the Income Tax (Amendment) Act 2026.">
+          <div class="trace-bar">
+            <span class="t">PAYE · gross UGX 1,000,000</span>
+            <span class="badge badge-a">A · primary law</span>
+          </div>
+          <div class="trace-body">
+            <div class="trace-big"><span class="v">188,250</span><span class="u">UGX</span></div>
+            <p class="trace-cap">Your first 335,000 is tax-free. The rest is taxed in three steps.</p>
+            <div class="trace-row"><span>0 – 335,000 @ 0%</span><span>0</span></div>
+            <div class="trace-row"><span>335,001 – 410,000 @ 20%</span><span>15,000</span></div>
+            <div class="trace-row"><span>410,001 – 485,000 @ 25%</span><span>18,750</span></div>
+            <div class="trace-row"><span>485,001 – 1,000,000 @ 30%</span><span>154,500</span></div>
+            <div class="trace-row tot"><span>PAYE</span><span>188,250</span></div>
+          </div>
+          <div class="trace-foot">
+            <span class="badge badge-n">Income Tax (Amendment) Act 2026, Sch. 4 Pt I</span>
+            <span class="badge badge-n">verified 11 jul 2026</span>
+          </div>
+        </div>
+
+        <div class="conflict-slip">
+          <strong>URA's own website still says 235,000.</strong>
+          The gazetted Act says 335,000, in force since 1 July. We show you both.
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════ THE BAND — and the point it makes ═══════════════
+       She is not decoration. She is the taxpayer.
+       A market trader, turnover under 150 million, in the presumptive regime —
+       and URA does not compute her tax. She is expected to find her own band
+       and type the number into a portal, unassisted, with no validation.
+       That is the gap this page exists to close.
+  ═══════════════════════════════════════════════════════════════════ -->
+  <section class="band">
+    <figure class="ph band-fig" style="--ar:21/7">
+      <picture>
+        <source srcset="assets/images/hero-band.webp" type="image/webp">
+        <img src="assets/images/hero-band.jpg"
+             alt="A trader at her stall in a Ugandan market, holding a bunch of bananas, with matooke and pineapples stacked in front of her."
+             loading="lazy">
+      </picture>
+    </figure>
+    <p class="band-cap">
+      <strong>She is the taxpayer.</strong> A market trader under UGX 150,000,000 of turnover
+      falls into the small-business regime — and <strong>URA does not calculate her tax.</strong>
+      She is expected to find her own bracket and type the number into a portal herself.
+      No validation. Type too little and you attract an assessment; type too much and nobody tells you.
+    </p>
+  </section>
+
+  <!-- ═══════════════ THE WALL OF WRONG ═══════════════ -->
+  <section class="proof">
+    <p class="sec-lab">Why this exists</p>
+    <h2>Right now, the people you'd ask are wrong.</h2>
+
+    <div class="wall">
+      <div class="wrong">
+        <span class="x">✗</span>
+        <p class="w">URA's own website</p>
+        <p class="d">Still publishes the PAYE bands that were superseded on 1 July 2026.</p>
+        <p class="n">the tax authority</p>
+        <a class="pc-link" href="https://ura.go.ug/en/domestic-taxes/paye-rates/" target="_blank" rel="noopener">See for yourself ↗</a>
+      </div>
+      <div class="wrong">
+        <span class="x">✗</span>
+        <p class="w">PwC Uganda</p>
+        <p class="d">Publishes the wrong VAT registration threshold — and gets the deregistration test wrong too.</p>
+        <p class="n">the Big Four</p>
+      </div>
+      <div class="wrong">
+        <span class="x">✗</span>
+        <p class="w">Grant Thornton Uganda</p>
+        <p class="d">Their tax guide still carries a presumptive table that expired in 2020.</p>
+        <p class="n">six years stale</p>
+      </div>
+      <div class="wrong">
+        <span class="x">✗</span>
+        <p class="w">RSM Uganda</p>
+        <p class="d">Says 25% of a <em>gratuity</em> is tax-exempt. The Act gives that relief to termination compensation. <strong>Employers following RSM are under-deducting PAYE.</strong></p>
+        <p class="n">wrong on the face of s.19</p>
+      </div>
+      <div class="wrong">
+        <span class="x">✗</span>
+        <p class="w">MMAKS · Crowe · Global Law Experts</p>
+        <p class="d">Still publishing a <strong>0.5% minimum tax</strong> and a <strong>3% stamp duty</strong> as law. <strong>Parliament deleted both on the floor.</strong></p>
+        <p class="n">reading the Bill, not the Act</p>
+      </div>
+      <div class="wrong gold">
+        <span class="x">!</span>
+        <p class="w">A three-year tax exemption</p>
+        <p class="d">Sits in the gazette — <strong>absent from URA's own exemptions page and from PwC's tax summary.</strong></p>
+        <p class="n">how many businesses paid tax they never owed?</p>
+      </div>
+    </div>
+
+    <p class="proof-close">
+      A business doesn't fail to comply because it's dishonest.
+      <strong>It fails because nobody can tell it what the number is.</strong>
+    </p>
+  </section>
+
+
+  <!-- ═══════════════ THE CLOCK — nothing else in Uganda does this ═══════════════
+       Two of this year's headline taxes DIED on the floor of Parliament and are
+       still being published as law by Ugandan firms. One law is signed and not in
+       force, and every HR guide is already reporting it as settled.
+
+       Nobody tracks the STAGE a tax is at. That is the whole section.
+  ═══════════════════════════════════════════════════════════════════════════════ -->
+  <section class="proof">
+    <p class="sec-lab">The thing nobody else does</p>
+    <h2>In Uganda, a tax can be signed and still not be law.<br>And two of this year's taxes died on the floor.</h2>
+
+    <div class="wall">
+      <div class="wrong gold">
+        <span class="x">!</span>
+        <p class="w">The 0.5% minimum tax</p>
+        <p class="d">On companies carrying losses past seven years. <strong>Parliament deleted it on 23 April 2026.</strong> The Speaker asked what exactly you are taxing after seven years of losses. It is still being published as law.</p>
+        <p class="n">🔴 we shipped this. then we caught it.</p>
+      </div>
+      <div class="wrong gold">
+        <span class="x">!</span>
+        <p class="w">Stamp duty doubled to 3%</p>
+        <p class="d">On every land transfer. <strong>Parliament rejected it on 21 April 2026.</strong> The rate is 1.5%. On a 500m property, being told otherwise costs you <strong>7,500,000</strong> you do not owe.</p>
+        <p class="n">we refused to compute it. we were right.</p>
+      </div>
+      <div class="wrong gold">
+        <span class="x">!</span>
+        <p class="w">Severance — one month per year</p>
+        <p class="d">The President signed it on 29 April 2026. <strong>No commencement notice has been gazetted, so it is not in force.</strong> Every HR guide in Uganda is already reporting it as the law.</p>
+        <p class="n">and nobody will tell you when it lands</p>
+      </div>
+    </div>
+
+    <p class="proof-close">
+      A bill is not an act. A gazetted bill is not an act. A clause quoted by four law firms is not an act.
+      <strong>In Uganda, the floor is where taxes die — and almost nobody watches the floor.</strong>
+    </p>
+
+    <div class="hero-cta" style="margin-top:26px">
+      <a class="btn-primary" href="calculators.html#calc=clock">See what is coming — and what died →</a>
+      <span class="btn-note">Free. No sign-up.</span>
+    </div>
+  </section>
+
+  <!-- ═══════════════ THE CURVE — plotted from the real engine ═══════════════ -->
+  <section class="proof">
+    <div class="curve-wrap">
+      <div>
+        <p class="sec-lab">And silence is expensive</p>
+        <h2 style="margin-bottom:16px">A UGX 4,000,000 arrear<br>more than <em>triples</em> in five years.</h2>
+        <p class="proof-close" style="margin-top:0; font-size:16px">
+          Interest runs at <strong>2% a month, compounding</strong> — about 27% a year — on money
+          nobody ever told you that you owed.
+        </p>
+        <p class="proof-close" style="font-size:16px; margin-top:14px">
+          <strong>But it may be entirely curable.</strong> Disclose it voluntarily before proceedings begin
+          and the Commissioner may waive <em>all</em> of the interest and the penalty.
+          That's in URA's own rules. Nobody sells it.
+        </p>
+      </div>
+
+      <figure class="curve-fig">
+        <svg viewBox="0 0 380 210" width="100%" role="img" aria-labelledby="ct cd">
+          <title id="ct">Compounding arrears</title>
+          <desc id="cd">A UGX 4,000,000 tax arrear grows to UGX 13,124,123 over five years at 2% per month, compounding.</desc>
+          <line x1="42" y1="20"  x2="366" y2="20"  stroke="var(--border)" stroke-width="1"/>
+          <line x1="42" y1="65"  x2="366" y2="65"  stroke="var(--border)" stroke-width="1"/>
+          <line x1="42" y1="110" x2="366" y2="110" stroke="var(--border)" stroke-width="1"/>
+          <line x1="42" y1="155" x2="366" y2="155" stroke="var(--border)" stroke-width="1"/>
+          <line x1="42" y1="170" x2="366" y2="170" stroke="var(--border-str)" stroke-width="1"/>
+
+          <text x="36" y="24"  text-anchor="end" font-size="9" font-family="var(--font-num)" fill="var(--ink-400)">14m</text>
+          <text x="36" y="69"  text-anchor="end" font-size="9" font-family="var(--font-num)" fill="var(--ink-400)">10m</text>
+          <text x="36" y="114" text-anchor="end" font-size="9" font-family="var(--font-num)" fill="var(--ink-400)">7m</text>
+          <text x="36" y="159" text-anchor="end" font-size="9" font-family="var(--font-num)" fill="var(--ink-400)">4m</text>
+
+          <!-- Exact engine output: 4,000,000 x 1.02^m at m = 0,6,…,60 -->
+          <path d="M 42 170 L 69 165 L 96 159 L 123 152 L 150 145 L 177 136 L 204 126 L 231 115 L 258 102 L 285 87 L 312 71"
+                fill="none" stroke="var(--red-600)" stroke-width="2" stroke-linecap="round"/>
+          <path d="M 42 170 L 69 165 L 96 159 L 123 152 L 150 145 L 177 136 L 204 126 L 231 115 L 258 102 L 285 87 L 312 71 L 312 170 Z"
+                fill="var(--red-600)" opacity=".06"/>
+
+          <circle cx="42"  cy="170" r="3" fill="var(--ink-900)"/>
+          <circle cx="312" cy="71"  r="4" fill="var(--red-600)"/>
+
+          <text x="42" y="188" font-size="9" font-family="var(--font-num)" fill="var(--ink-500)">today</text>
+          <text x="312" y="188" text-anchor="middle" font-size="9" font-family="var(--font-num)" fill="var(--ink-500)">5 years</text>
+
+          <text x="50"  y="163" font-size="10" font-family="var(--font-num)" fill="var(--ink-700)">4,000,000</text>
+          <text x="324" y="66"  font-size="11" font-family="var(--font-num)" font-weight="500" fill="var(--red-700)">13,124,123</text>
+        </svg>
+        <figcaption class="curve-cap">plotted from the engine · 2%/month, compounding · s.148 ITA</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ═══════════════ WHO THIS IS FOR ═══════════════ -->
+  <section class="proof">
+    <p class="sec-lab">Who this is for</p>
+    <h2 style="margin-bottom:24px">Three people. Three things nobody told them.</h2>
+
+    <div class="people">
+
+      <div class="person">
+        <figure class="ph" style="--ar:4/3">
+          <picture>
+            <source srcset="assets/images/person-consultant.webp" type="image/webp">
+            <img src="assets/images/person-consultant.jpg" alt="A Ugandan consultant working late at his desk, writing in a ledger surrounded by files and papers."
+                 loading="lazy">
+          </picture>
+        </figure>
+        <div class="person-body">
+          <h3>The consultant</h3>
+          <p class="role">Five years of government contracts</p>
+          <p>Every client withheld 6% from every invoice. It was never a cost — it was tax he had already paid. He just never collected the certificates.</p>
+          <span class="hit">UGX 70,000,000 — sitting with URA</span>
+        </div>
+      </div>
+
+      <div class="person">
+        <figure class="ph" style="--ar:4/3">
+          <picture>
+            <source srcset="assets/images/person-founder.webp" type="image/webp">
+            <img src="assets/images/person-founder.jpg" alt="Two Ugandan colleagues working through a problem together at a laptop."
+                 loading="lazy">
+          </picture>
+        </figure>
+        <div class="person-body">
+          <h3>The founder</h3>
+          <p class="role">A grant ended. Payroll changed.</p>
+          <p>NSSF kept accruing after the grant stopped. There was no letter, no alarm, no notification event. It just kept growing at 10% a month.</p>
+          <span class="hit">Still unresolved</span>
+        </div>
+      </div>
+
+      <div class="person">
+        <figure class="ph" style="--ar:4/3">
+          <picture>
+            <source srcset="assets/images/person-finance.webp" type="image/webp">
+            <img src="assets/images/person-finance.jpg" alt="Hands working a calculator beside a laptop, with papers spread across the desk."
+                 loading="lazy">
+          </picture>
+        </figure>
+        <div class="person-body">
+          <h3>The finance manager</h3>
+          <p class="role">Bidding for a government tender</p>
+          <p>Every company return filed. Every shilling paid. Refused a Tax Clearance Certificate anyway — because one director had never filed his <em>own personal</em> return.</p>
+          <span class="hit">Lost the tender</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════ THE FOUR PROMISES ═══════════════ -->
+  <section class="promises">
+    <p class="sec-lab">What we do differently</p>
+    <div class="prom-grid">
+
+      <div class="prom">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 6h16M4 12h10M4 18h13"/><path d="M17 15l2.5 2.5L23 13"/>
+        </svg>
+        <h3>We show our working</h3>
+        <p>Every number, three levels deep: the answer, the arithmetic, and the actual section of the Act it came from.</p>
+      </div>
+
+      <div class="prom">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M12 14v3"/>
+        </svg>
+        <h3>We date everything</h3>
+        <p>Uganda's tax law changes every 1 July. An undated tax claim is a liability. Every figure carries the day we checked it.</p>
+      </div>
+
+      <div class="prom">
+        <svg class="ico" viewBox="0 0 24 24" style="stroke:var(--red-600)" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.5"/>
+        </svg>
+        <h3>We say what we don't know</h3>
+        <p>When we aren't sure, the calculator <em>refuses</em> — and explains why. Every competitor returns a number here. We return the truth.</p>
+      </div>
+
+      <div class="prom">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3v18"/><path d="M5 8l-2 6h6zM19 8l-2 6h6z"/><path d="M5 8l7-2 7 2"/>
+        </svg>
+        <h3>We never say "do this"</h3>
+        <p>We give you the options, priced, with what each one requires of you and where each one stops working. The decision is yours.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════ THREE DOORS ═══════════════ -->
+  <section class="doors">
+    <p class="sec-lab">Three ways in</p>
+    <h2>Start free. Grow into it.</h2>
+
+    <div class="door-grid">
+
+      <a class="door live" href="calculators.html">
+        <div class="door-top">
+          <span class="door-badge live">Available now</span>
+          <h3>The Calculators</h3>
+          <p class="door-sub">Free · no login · no tax words</p>
+        </div>
+
+        <figure class="ph">
+          <picture>
+            <source srcset="assets/images/door-calculators.webp" type="image/webp">
+            <img src="assets/images/door-calculators.jpg" alt="A market trader taking a card payment on a handheld terminal at her vegetable stall."
+                 loading="lazy">
+          </picture>
+        </figure>
+
+        <div class="door-prev" aria-hidden="true">
+          <div class="dp-row"><span class="dp-l">Withholding tax — owed <em>to you</em></span><span class="dp-tag dp-ok">money back</span></div>
+          <div class="dp-row"><span class="dp-l">Income tax on your profit</span><span class="dp-r">30 Sep</span></div>
+          <div class="dp-row"><span class="dp-l">Tax Clearance Certificate</span><span class="dp-tag dp-bad">blocked</span></div>
+        </div>
+
+        <p class="door-p">Tell us about yourself in plain language. We'll tell you which taxes apply, <strong>why</strong>, <strong>when they're due</strong>, and what happens if you miss them. Then <strong>37 calculators</strong>, each showing its working and citing the law.</p>
+        <span class="door-go">Start now →</span>
+      </a>
+
+      <a class="door soon" href="individual.html">
+        <div class="door-top">
+          <span class="door-badge">Phase 2</span>
+          <h3>For individuals</h3>
+          <p class="door-sub">Your TIN · your money</p>
+        </div>
+
+        <figure class="ph">
+          <picture>
+            <source srcset="assets/images/door-individual.webp" type="image/webp">
+            <img src="assets/images/door-individual.jpg" alt="Stacked matooke and bananas at a Ugandan market stall."
+                 loading="lazy">
+          </picture>
+        </figure>
+
+        <div class="door-prev" aria-hidden="true">
+          <div class="dp-row"><span class="dp-l">Certificates held</span><span class="dp-r">4 of 11</span></div>
+          <div class="dp-row"><span class="dp-l">Missing</span><span class="dp-tag dp-bad">7</span></div>
+          <div class="dp-row"><span class="dp-l">URA is holding</span><span class="dp-r">3,600,000</span></div>
+        </div>
+
+        <p class="door-p">Everything the calculators do — on <em>your</em> actual numbers, tracked over time, with the paperwork chased for you.</p>
+        <span class="door-go">Join the waiting list →</span>
+      </a>
+
+      <a class="door soon" href="organisation.html">
+        <div class="door-top">
+          <span class="door-badge">Phase 3</span>
+          <h3>For organisations</h3>
+          <p class="door-sub">Company · directors · staff</p>
+        </div>
+
+        <figure class="ph">
+          <picture>
+            <source srcset="assets/images/door-organisation.webp" type="image/webp">
+            <img src="assets/images/door-organisation.jpg" alt="Ugandan professionals reviewing accounts together in a working meeting."
+                 loading="lazy">
+          </picture>
+        </figure>
+
+        <div class="door-prev" aria-hidden="true">
+          <div class="dp-row"><span class="dp-l">Company returns</span><span class="dp-tag dp-ok">all filed</span></div>
+          <div class="dp-row"><span class="dp-l">Company arrears</span><span class="dp-tag dp-ok">none</span></div>
+          <div class="dp-row"><span class="dp-l">Director 2 — <em>personal</em> return</span><span class="dp-tag dp-bad">blocks TCC</span></div>
+        </div>
+
+        <p class="door-p">Payroll, invoicing, EFRIS, audit-readiness — and the one thing no accountant in Uganda does: <strong>look at your directors and your company together</strong>.</p>
+        <span class="door-go">Join the waiting list →</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════ THE SENTENCE NOBODY ELSE CAN SAY ═══════════════ -->
+  <section class="killer">
+    <svg class="killer-mark" width="150" height="200" viewBox="0 0 40 56" aria-hidden="true">
+      <rect x="6" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+      <rect x="24" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+    </svg>
+    <p class="sec-lab">Why one platform, not three</p>
+    <blockquote>
+      "Your personal unfiled tax return is what's blocking your company's Tax Clearance Certificate."
+    </blockquote>
+    <p class="killer-p">
+      A spotless company — every return filed, every shilling paid — is still refused its certificate
+      if <strong>one director</strong> hasn't filed their <em>own personal</em> return.
+      It's invisible from inside the company's books. You find out when you lose the tender.
+    </p>
+    <p class="killer-p">
+      Your accountant does the company. Nobody does the directors.
+      <strong>The arrears live in the gap between them.</strong>
+      A product with a "Personal" tab and a "Business" tab recreates that gap in software.
+      So we didn't build one.
+    </p>
+  </section>
+
+  <!-- ═══════════════ CLOSE ═══════════════ -->
+  <section class="close">
+    <h2>Find out what applies to you.</h2>
+    <p>A few plain questions. No sign-up. It's free, and it always will be.</p>
+    <a class="btn-primary lg" href="calculators.html">Start →</a>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-grid">
+    <div>
+      <div class="brand" style="margin-bottom:10px">
+        <svg viewBox="0 0 40 56" width="15" height="21" aria-hidden="true">
+          <rect x="6" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+          <rect x="24" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+        </svg>
+        <span>Selah</span>
+      </div>
+      <p class="foot-p">Pause — and know where you stand.</p>
+    </div>
+    <div>
+      <p class="foot-h">Product</p>
+      <a href="calculators.html#all">Calculators</a>
+      <a href="individual.html">For individuals</a>
+      <a href="organisation.html">For organisations</a>
+    </div>
+    <div>
+      <p class="foot-h">The rules</p>
+      <p class="foot-p">FY2026/27 · verified 11 July 2026</p>
+      <p class="foot-p">Every rule cites the Act, the section and the gazette.</p>
+      <p class="foot-p stamp">242 tests. Every figure executed, not typed.</p>
+    </div>
+  </div>
+  <div class="foot-bar">
+    <p>General information, not tax advice. We haven't seen your contracts — confirm with a licensed Ugandan tax adviser before acting. Uganda's tax law changes every 1 July.</p>
+  </div>
+</footer>
+</body>
+</html>

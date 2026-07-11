@@ -1,0 +1,23 @@
+# 🔴 THIS FILE USED TO IGNORE package.json AND package-lock.json.
+#
+# Which meant that anyone who cloned this repository — including you, on a new
+# machine — would find no `npm test`, no `npm run e2e`, and no pinned dependency
+# versions. The 408 engine tests and 176 UI tests would have been unrunnable, and
+# the whole claim that "a failing test cannot ship" would have been decoration.
+#
+# A test suite you cannot run is not a test suite. Both files are now COMMITTED,
+# deliberately, and the lockfile is committed BECAUSE it pins jsdom and Playwright
+# to the exact versions the suite was verified against.
+
+node_modules/
+
+# Playwright output
+test-results/
+playwright-report/
+blob-report/
+
+# scratch
+*.tmp
+*.tmp.js
+.e.tmp
+.t.tmp

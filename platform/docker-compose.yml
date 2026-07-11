@@ -1,0 +1,58 @@
+# Selah — local
+#
+#   docker compose up --build      → http://localhost:8080
+#   docker compose run --rm test   → the 101 engine tests, on their own
+#
+# The build itself runs the tests. If a Ugandan tax rule is wrong, `up` fails.
+
+services:
+  selah:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: selah:latest
+    container_name: selah
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+    # Nothing here writes to disk. Nothing here needs to.
+    read_only: true
+
+    # 🔴 THE TMPFS MOUNTS MUST BE OWNED BY 101.
+    #
+    # This is what broke the first build. A tmpfs arrives ROOT-OWNED by default,
+    # so nginx (uid 101, because we refuse to run as root) cannot create its own
+    # cache directories inside it, and dies on boot:
+    #
+    #     nginx: [emerg] mkdir() "/var/cache/nginx/client_temp" failed (13: Permission denied)
+    #
+    # "Read-only and unprivileged" is not one switch. It is two, and they have to
+    # agree with each other.
+    tmpfs:
+      - /tmp:mode=1777,uid=101,gid=101
+      - /var/cache/nginx:mode=0700,uid=101,gid=101
+      - /var/run:mode=0700,uid=101,gid=101
+
+    user: "101:101"
+    security_opt:
+      - no-new-privileges:true
+    # Nothing runs as root, so nothing needs to drop privileges. Drop everything.
+    cap_drop:
+      - ALL
+
+    # A slow connection is not an excuse for a slow container.
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+
+    healthcheck:
+      # Not "is the port open". "Does it still compute Ugandan tax correctly —
+      # and does it still refuse what it does not know."
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "global.window={};require('/opt/s
