@@ -1,17 +1,52 @@
 # Keep the build context tiny and the image clean.
+#
+# 🔴 THIS FILE ONCE EXCLUDED package.json AND package-lock.json.
+#
+#    It was written when there was only a static web image, which does not need
+#    them. Then the API arrived, and its Dockerfile begins:
+#
+#        COPY package.json package-lock.json ./
+#        RUN npm ci
+#
+#    ...against a build context from which .dockerignore had silently removed both.
+#    The build failed with:
+#
+#        failed to compute cache key: "/package-lock.json": not found
+#
+#    A file that exists on disk, in the same directory as the Dockerfile, that
+#    Docker insists is not there. The error tells you nothing about why.
+#
+#    build.js now cross-checks every COPY in every Dockerfile against this file.
+#    An ignore rule that hides a file the build needs will not build.
+
 node_modules/
-package.json
-package-lock.json
+
 .git/
 .gitignore
-README.md
-*.md
-Dockerfile
-docker-compose.yml
 .dockerignore
 
-# 🔴 Never bake a secret into an image.
+# Docs and orchestration are not part of any image.
+*.md
+docker-compose.yml
+Dockerfile
+Dockerfile.api
+playwright.config.js
+e2e.spec.js
+
+# Playwright output
+test-results/
+playwright-report/
+
+# 🔴 NEVER BAKE A SECRET INTO AN IMAGE.
+#    An image is a tarball. It gets pushed, pulled, cached and shared. A key
+#    baked into a layer is a key you cannot rotate and cannot recall.
 .env
 .env.*
 *.pem
 *.key
+*.p12
+
+# Scratch
+*.tmp
+*.tmp.js
+*.bak

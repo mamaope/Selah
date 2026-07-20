@@ -294,3 +294,396 @@ footer strong { color:var(--ink-700); font-weight:500; }
   padding: 8px 0; border-bottom: 1px solid var(--border);
 }
 .result.cannot .ob-p:last-child { border-bottom: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SELAH — THE APP LAYER
+   ═══════════════════════════════════════════════════════════════════════════
+   This replaces four separate slabs of CSS that were appended one at a time as
+   features landed. Each was reasonable alone; together they had no shared spacing
+   scale, no type hierarchy, and no agreement about what a "card" is. The result
+   was a product where everything shouted at the same volume, and the user's
+   complaint was exactly right: it was hard to know where anything was.
+
+   Three rules govern everything below.
+
+   1. HIERARCHY IS SIZE AND SPACE, NOT COLOUR. A screen has ONE headline, a few
+      section heads, and body. If everything is bold, nothing is.
+
+   2. ONE PRIMARY ACTION PER SCREEN. Exactly one filled button. Everything else is
+      an outline or a link. Two primaries is a question, not an interface.
+
+   3. NUMBERS ARE TABULAR AND RIGHT-ALIGNED, ALWAYS. Money read in a proportional
+      font reads like prose. Money read in tabular figures reads like a fact — and
+      1,200,000 is visibly larger than 120,000 at a glance, rather than after a
+      squint.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* A spacing scale. Not "whatever looked right that afternoon". */
+  --s1:.25rem; --s2:.5rem; --s3:.75rem; --s4:1rem; --s5:1.5rem; --s6:2rem; --s7:3rem;
+  --shadow-1:0 1px 2px rgba(0,0,0,.04), 0 1px 3px rgba(0,0,0,.06);
+  --shadow-2:0 4px 12px rgba(0,0,0,.08);
+  --shadow-3:0 12px 32px rgba(0,0,0,.18);
+}
+[data-theme="dark"] {
+  --shadow-1:0 1px 2px rgba(0,0,0,.3);
+  --shadow-2:0 4px 14px rgba(0,0,0,.4);
+  --shadow-3:0 16px 40px rgba(0,0,0,.6);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   🔴 THIS ONE LINE. READ THE COMMENT BEFORE YOU TOUCH IT.
+
+   `[hidden]` is styled by the BROWSER's own stylesheet as `display: none`. But a
+   browser's stylesheet has the LOWEST priority there is — ANY author rule that
+   sets `display` on the same element beats it. Silently. With no error.
+
+   So this:
+
+       .sheet { display: grid; }        <div class="sheet" hidden>
+
+   ...is a dialog that CAN NEVER BE CLOSED. The `hidden` attribute is set, the
+   JavaScript is correct, `el.hidden === true` — and the thing is still on screen,
+   on top of everything, and the user cannot navigate away from it. Which is
+   exactly what shipped.
+
+   The same rule silently broke `.fab` (a Record button that would not go away) and
+   `.appnav` (a nav bar shown to signed-out visitors).
+
+   🔴 AND THE TESTS PASSED. Every one of them asserted `el.hidden === true` — THE
+   PROPERTY, NOT THE RENDERING. The property was always true. The pixels never
+   agreed. This is the THIRD time in this project that a test has verified a fact
+   the browser did not share, and it is the same lesson every time:
+
+       ASSERT WHAT THE USER SEES, NOT WHAT THE DOM SAYS.
+
+   The tests now read getComputedStyle().display. So does the guard below.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[hidden] { display: none !important; }
+
+main { max-width: 62rem; margin: 0 auto; padding: var(--s5) var(--s4) var(--s7); }
+
+/* ── PAGE HEADER — every screen says what it is, and what to do on it ─────── */
+.viewhead {
+  display: flex; align-items: baseline; gap: var(--s3);
+  flex-wrap: wrap; margin-bottom: var(--s2);
+}
+.viewhead h2 { font-size: 1.6rem; font-weight: 600; letter-spacing: -.02em; }
+.viewhead .back { order: -1; }
+.lede { color: var(--ink-500); margin-bottom: var(--s5); max-width: 44rem; }
+
+.group-head {
+  margin: var(--s6) 0 var(--s3);
+  font-size: .72rem; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-400);
+  display: flex; align-items: center; gap: var(--s3);
+}
+.group-head::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+/* ── CARDS — one definition, used everywhere ─────────────────────────────── */
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: var(--s4);
+  box-shadow: var(--shadow-1);
+}
+.card + .card, .stack > * + * { margin-top: var(--s3); }
+.card h3 { font-size: 1rem; font-weight: 600; margin-bottom: var(--s2); }
+
+/* 🔑 A CARD HEADER: what this is, on the left. What you can do to it, on the right.
+   The action sits WITH the thing it acts on — not floating over it, covering the
+   last row, which is the one you just added. */
+.cardhead {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s3); margin-bottom: var(--s2); flex-wrap: wrap;
+}
+.cardhead h3 { margin-bottom: 0; }
+.card p { color: var(--ink-700); }
+.card .muted, .muted { color: var(--ink-500); }
+.hint { font-size: .85rem; color: var(--ink-500); margin-top: var(--s2); }
+.src  { font-size: .75rem; color: var(--ink-400); font-family: var(--font-num); }
+.warn { color: var(--red-700); }
+
+/* semantic cards — the LEFT EDGE carries the meaning, so the body stays readable */
+.card.refuse { border-left: 3px solid var(--red-600);     background: var(--red-50); }
+.card.ask    { border-left: 3px solid var(--emerald-600); background: var(--emerald-50); }
+.card.note   { border-left: 3px solid var(--amber-600);   background: var(--amber-50); }
+
+/* ── BUTTONS — one primary per screen. Everything else recedes. ───────────── */
+.primary, .cta {
+  background: var(--emerald-600); color: var(--on-emerald);
+  border: 1px solid var(--emerald-600); border-radius: var(--radius);
+  padding: .55rem 1rem; font: inherit; font-weight: 600; cursor: pointer;
+  box-shadow: var(--shadow-1);
+}
+.primary:hover, .cta:hover { background: var(--emerald-700); border-color: var(--emerald-700); }
+.ghost { padding: .5rem .85rem; font: inherit; }
+.link {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--emerald-700); font: inherit; font-size: .85rem; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link:hover { color: var(--emerald-900); }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+  outline: 2px solid var(--emerald-600); outline-offset: 2px;
+}
+.row { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
+
+/* ── FORMS ───────────────────────────────────────────────────────────────── */
+label { display: block; font-size: .78rem; font-weight: 500; color: var(--ink-500); margin-bottom: var(--s1); }
+input, select, textarea {
+  font: inherit; font-size: 16px;          /* 16px: below this, iOS zooms the page */
+  padding: .55rem .7rem; border: 1px solid var(--border-str);
+  border-radius: var(--radius); background: var(--surface-2); color: var(--ink-900);
+}
+input[type=number] { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+/* ── THE APP NAV. Always on screen; always says where you are. ────────────── */
+.appnav { display: none; }
+.appnav:not([hidden]) {
+  display: flex; gap: var(--s1); position: sticky; top: 0; z-index: 40;
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+  padding: var(--s2) var(--s4); overflow-x: auto;
+}
+.appnav button {
+  display: flex; align-items: center; gap: var(--s2);
+  background: none; border: none; cursor: pointer;
+  padding: .45rem .8rem; border-radius: 999px;
+  color: var(--ink-500); font: inherit; font-size: .88rem; white-space: nowrap;
+}
+.appnav button:hover { background: var(--surface-1); color: var(--ink-900); }
+.appnav button.active {
+  color: var(--emerald-900); background: var(--emerald-50);
+  font-weight: 600; box-shadow: inset 0 0 0 1px var(--emerald-100);
+}
+@media (max-width: 700px) {
+  .appnav {
+    position: fixed; top: auto; bottom: 0; left: 0; right: 0;
+    border-top: 1px solid var(--border); border-bottom: none;
+    justify-content: space-around; box-shadow: 0 -2px 12px rgba(0,0,0,.06);
+  }
+  .appnav button { flex-direction: column; gap: 2px; font-size: .68rem; padding: .4rem .5rem; }
+  main { padding-bottom: 5.5rem; }
+}
+@media (min-width: 701px) { .appnav button span { display: inline; } }
+
+/* ── DOORS — the home screen ─────────────────────────────────────────────── */
+.door-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--s3); }
+.door {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-card); padding: var(--s4); cursor: pointer;
+  transition: border-color .12s, transform .12s, box-shadow .12s;
+}
+.door:hover { border-color: var(--emerald-600); transform: translateY(-1px); box-shadow: var(--shadow-2); }
+.door h3 { font-size: 1rem; margin-bottom: var(--s2); }
+.door p { font-size: .85rem; color: var(--ink-500); line-height: 1.5; }
+
+/* ── TABS inside a Book ──────────────────────────────────────────────────── */
+.tabs {
+  display: flex; gap: var(--s1); overflow-x: auto;
+  margin: var(--s4) 0; border-bottom: 1px solid var(--border);
+}
+.tabs .tab {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  padding: .55rem .9rem; margin-bottom: -1px; cursor: pointer;
+  color: var(--ink-500); font: inherit; font-size: .9rem; white-space: nowrap;
+}
+.tabs .tab:hover { color: var(--ink-900); }
+.tabs .tab.active { color: var(--emerald-900); border-bottom-color: var(--emerald-600); font-weight: 600; }
+
+/* ── STAT GRID — the numbers that matter, side by side ───────────────────── */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: var(--s2); margin: var(--s3) 0; }
+.stat { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--s3); background: var(--surface-1); }
+.stat .k { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-400); }
+.stat .v {
+  font-size: 1.35rem; font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  margin-top: 2px; letter-spacing: -.02em;
+}
+.stat.muted .v { color: var(--ink-400); }
+.stat.bad .v { color: var(--red-600); }
+.stat.good .v { color: var(--emerald-700); }
+
+/* ── TABLES — money is tabular ───────────────────────────────────────────── */
+.tablewrap { overflow-x: auto; margin: var(--s3) calc(-1 * var(--s4)) 0; padding: 0 var(--s4); }
+table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
+table.t th, table.t td { padding: .55rem .7rem; text-align: left; white-space: nowrap; }
+table.t thead th {
+  position: sticky; top: 0; background: var(--surface-2); z-index: 1;
+  font-size: .68rem; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-400); font-weight: 600; border-bottom: 1px solid var(--border-str);
+}
+table.t tbody tr { border-bottom: 1px solid var(--border); }
+table.t tbody tr:hover { background: var(--surface-1); }
+table.t td.num, table.t th.num {
+  text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums;
+}
+table.t td.wide { white-space: normal; min-width: 10rem; }
+table.t td.amt { font-weight: 600; }
+
+tr.is-in    td.amt { color: var(--emerald-700); }
+tr.is-draft { color: var(--ink-400); font-style: italic; }   /* 🔴 counted in NOTHING */
+tr.is-missed td { color: var(--red-700); }                   /* 🔑 it did not come */
+tr.is-transfer td { color: var(--ink-400); }                 /* counted in nothing */
+
+/* ── PILLS ───────────────────────────────────────────────────────────────── */
+.pill {
+  display: inline-block; padding: .1rem .5rem; border-radius: 999px;
+  font-size: .66rem; letter-spacing: .05em; text-transform: uppercase; font-weight: 600;
+  border: 1px solid var(--border-str); color: var(--ink-500); background: var(--surface-1);
+}
+.pill.draft  { border-color: var(--border-str); color: var(--ink-400); }
+.pill.ok     { border-color: var(--emerald-100); color: var(--emerald-700); background: var(--emerald-50); }
+.pill.missed,
+.pill.over   { border-color: var(--red-100); color: var(--red-700); background: var(--red-50); }
+
+/* ── PROGRESS ────────────────────────────────────────────────────────────── */
+.bar { display: inline-block; width: 5rem; height: 6px; border-radius: 999px; background: var(--surface-1); overflow: hidden; vertical-align: middle; }
+.bar > i { display: block; height: 100%; background: var(--emerald-600); }
+.bar.over > i { background: var(--red-600); }
+
+/* ── EMPTY STATES — never a blank screen. Always: what, why, and what next. ─ */
+.empty { text-align: center; padding: var(--s6) var(--s4); }
+.empty .ico { font-size: 2rem; opacity: .6; }
+.empty h3 { margin: var(--s3) 0 var(--s2); }
+.empty p { color: var(--ink-500); max-width: 30rem; margin: 0 auto var(--s4); font-size: .9rem; }
+
+/* ── "START HERE" ────────────────────────────────────────────────────────── */
+.step { display: flex; gap: var(--s3); align-items: flex-start; padding: var(--s2) 0; }
+.step .n {
+  flex: 0 0 1.5rem; height: 1.5rem; border-radius: 999px; display: grid; place-items: center;
+  background: var(--surface-1); color: var(--ink-400); font-size: .72rem; font-weight: 700;
+  border: 1px solid var(--border-str);
+}
+.step.done .n { background: var(--emerald-600); color: var(--on-emerald); border-color: var(--emerald-600); }
+.step.done .t { color: var(--ink-400); text-decoration: line-through; }
+.step .t { flex: 1; font-size: .92rem; }
+
+/* ── THE SHEET ─────────────────────────────────────────────────────────── */
+
+/* 🔴 DEFAULT TO HIDDEN, IN THE CLASS ITSELF.
+   Do not set `display: grid` and then rely on `[hidden]` to override it — that is
+   a fight with the cascade, and the cascade wins in ways that are invisible until
+   a user is trapped in a dialog they cannot close. Set `display: none` as the BASE,
+   and only show it when the element is NOT hidden. There is nothing to override. */
+.sheet { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.5); display: none; }
+.sheet:not([hidden]) { display: grid; place-items: end center; }
+.sheet-panel {
+  width: 100%; max-width: 27rem; max-height: 90vh; overflow: auto;
+  background: var(--surface-2); border: 1px solid var(--border-str);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  display: flex; flex-direction: column; box-shadow: var(--shadow-3);
+}
+@media (min-width: 701px) { .sheet { place-items: center; } .sheet-panel { border-radius: var(--radius-card); } }
+.sheet-head, .sheet-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s2);
+  padding: var(--s3) var(--s4); position: sticky; background: var(--surface-2); z-index: 2;
+}
+.sheet-head { top: 0; border-bottom: 1px solid var(--border); }
+.sheet-foot { bottom: 0; border-top: 1px solid var(--border); }
+.sheet-body { padding: var(--s4); }
+.sheet-body label { margin-top: var(--s3); }
+.sheet-body input, .sheet-body select { width: 100%; }
+/* The amount is what you opened this sheet to type. Make it the loudest thing on it. */
+.sheet-body #bk-amount { font-size: 1.7rem; font-weight: 600; letter-spacing: -.02em; text-align: right; }
+.sheet-body .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+
+.seg { display: flex; gap: var(--s1); background: var(--surface-1); padding: 3px; border-radius: var(--radius); }
+.seg-b {
+  flex: 1; padding: .5rem; cursor: pointer; font: inherit; font-size: .85rem;
+  background: none; border: none; border-radius: calc(var(--radius) - 2px); color: var(--ink-500);
+}
+.seg-b.active { background: var(--surface-2); color: var(--emerald-900); font-weight: 600; box-shadow: var(--shadow-1); }
+
+.saved { color: var(--emerald-700); font-weight: 600; }
+
+/* ── ON TRACK — the one budget fact the month screen needs ────────────────── */
+.ontrack {
+  display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;
+  margin-top: var(--s3); padding: var(--s3);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-1);
+}
+.ontrack.ok  { border-left: 3px solid var(--emerald-600); }
+.ontrack.bad { border-left: 3px solid var(--red-600); }
+.ontrack-l { flex: 1; min-width: 12rem; font-size: .9rem; }
+.ontrack .bar { width: 6rem; }
+
+/* ── THE DASHBOARD TILES ─────────────────────────────────────────────────────
+   🔴 A tile shows a REAL figure or a dash. Never a placeholder, never a sample.
+   A product that shows you an invented number has taught you to distrust its
+   real ones — so an empty tile says "—" and tells you what to do about it.     */
+.tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--s3); margin: var(--s4) 0;
+}
+.tile {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-card); padding: var(--s4);
+  box-shadow: var(--shadow-1); cursor: pointer; text-align: left;
+  transition: border-color .12s, transform .12s, box-shadow .12s;
+}
+.tile:hover { border-color: var(--emerald-600); transform: translateY(-1px); box-shadow: var(--shadow-2); }
+.tile .ti { font-size: 1.15rem; }
+.tile .tk { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-400); margin-top: var(--s2); }
+.tile .tv {
+  font-size: 1.5rem; font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em; margin-top: 2px; line-height: 1.2;
+}
+.tile .ts { font-size: .75rem; color: var(--ink-500); margin-top: var(--s1); }
+.tile.empty-t .tv { color: var(--ink-300); }
+.tile.bad  .tv { color: var(--red-600); }
+.tile.good .tv { color: var(--emerald-700); }
+.tile.act { border-left: 3px solid var(--emerald-600); }
+
+.dico { font-size: 1.05rem; margin-right: .35rem; }
+
+/* ── the "add" tile: present, but visibly not one of your things ──────────── */
+.tile-add {
+  border-style: dashed; background: none; box-shadow: none;
+  color: var(--ink-500);
+}
+.tile-add:hover { border-style: solid; border-color: var(--emerald-600); color: var(--ink-900); }
+.tile-add .ti { opacity: .7; }
+
+/* ── A NOTE COLUMN IS CONTEXT, NOT CONTENT ───────────────────────────────────
+   "Where this came from" was set to `wide` — normal wrapping, 10rem minimum — so
+   a sentence of working ("Over 6 months you spent 4,800,000 on this, across 6
+   transactions") pushed the BUDGET, SPENT and LEFT columns off the screen.
+
+   The figures are what the person came to the table to read. The note explains
+   them. An explanation that hides the thing it explains is not an explanation.
+
+   So: one line, truncated, muted, and the whole sentence on hover.              */
+table.t th.note, table.t td.note {
+  max-width: 13rem; width: 13rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: .72rem; color: var(--ink-400); font-family: var(--font-num);
+}
+table.t td.note { cursor: help; }
+
+/* On a narrow screen the note is the first thing to go. The numbers are not. */
+@media (max-width: 620px) {
+  table.t th.note, table.t td.note { display: none; }
+}
+
+/* ── editing a category where it is used ─────────────────────────────────── */
+.cat { display: inline-flex; align-items: center; gap: .3rem; }
+.cat-e { opacity: 0; font-size: .8rem; text-decoration: none; transition: opacity .1s; }
+table.t tr:hover .cat-e, .cat-e:focus-visible { opacity: 1; }
+.chk { display: inline-flex; align-items: center; gap: .3rem; font-size: .78rem; color: var(--ink-500); margin: 0; }
+.chk input { width: auto; }
+
+/* ── THE MONTH NAVIGATOR ──────────────────────────────────────────────────── */
+.monthnav {
+  display: flex; align-items: center; gap: var(--s3);
+  margin: var(--s4) 0 0;
+}
+.monthnav .ghost { font-size: 1.2rem; line-height: 1; padding: .3rem .7rem; }
+.monthnav-l { display: flex; flex-direction: column; min-width: 9rem; text-align: center; }
+.monthnav-l strong { font-size: 1.05rem; letter-spacing: -.01em; }
+.monthnav-l span { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; }
+.monthnav-l .past    { color: var(--ink-400); }
+.monthnav-l .current { color: var(--emerald-700); }
+.monthnav-l .future  { color: var(--amber-700); }
+.monthnav #bk-today { margin-left: auto; }

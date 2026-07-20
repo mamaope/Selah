@@ -41,6 +41,12 @@ RUN echo "" \
  && echo "═══ SELAH — EXECUTING THE RULES ═══════════════════════════" \
  && echo "" \
  && timeout 120 node engine/engine.test.js \
+ && timeout 60 node engine/calendar.test.js \
+ && timeout 60 node engine/books.test.js \
+ && timeout 60 node engine/accounts.test.js \
+ && timeout 60 node engine/rollup.test.js \
+ && timeout 60 node engine/money.test.js \
+ && timeout 60 node engine/forecast.test.js \
  && echo "" \
  && echo "The engine computes Ugandan tax law correctly." \
  && echo "Every figure was EXECUTED, not asserted." \
@@ -78,6 +84,8 @@ RUN node build.js \
  && echo "" \
  && echo "═══ SELAH — RENDERING THE PAGE ════════════════════════════" \
  && timeout 180 node web/ui.test.js \
+ && timeout 120 node web/individual.test.js \
+ && timeout 120 node web/organisation.test.js \
  && node -e " \
       global.window = {}; \
       require('./web/assets/engine.bundle.js'); \
@@ -109,6 +117,8 @@ RUN node build.js \
 #
 # Ship what a Ugandan taxpayer needs. Nothing else.
 RUN rm -f web/ui.test.js \
+ && rm -f web/organisation.test.js \
+ && rm -f web/individual.test.js \
  && rm -f web/assets/images/prepare.py \
  && rm -f web/assets/images/README.md \
  && rm -rf node_modules \

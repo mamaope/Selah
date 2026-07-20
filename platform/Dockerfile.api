@@ -1,0 +1,60 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# SELAH — THE API
+#
+# 🔴 THE TESTS RUN INSIDE THE BUILD, and the first one asserts that this server
+#    REFUSES to store a Ugandan's payslip while we are unregistered with the PDPO.
+#
+#    A build that ships an unregistered server that WOULD store personal data is
+#    a build that puts a director in a courtroom. So it does not build.
+# ══════════════════════════════════════════════════════════════════════════════
+FROM node:22-alpine AS verify
+
+WORKDIR /verify
+COPY package.json package-lock.json ./
+RUN npm ci --omit=optional --no-audit --no-fund
+
+COPY engine/ ./engine/
+COPY server/ ./server/
+
+RUN echo "" \
+ && echo "═══ SELAH — THE ENGINE ════════════════════════════════════" \
+ && timeout 120 node engine/engine.test.js \
+ && timeout 60 node engine/calendar.test.js \
+ && timeout 60 node engine/books.test.js \
+ && timeout 60 node engine/accounts.test.js \
+ && timeout 60 node engine/rollup.test.js \
+ && timeout 60 node engine/money.test.js \
+ && timeout 60 node engine/forecast.test.js \
+ && timeout 120 node server/password.test.js \
+ && echo "" \
+ && echo "═══ SELAH — THE PDPO GATE ═════════════════════════════════" \
+ && timeout 60 node server/server.test.js \
+ && echo "" \
+ && echo "  The server refuses to hold a Ugandan's data until it is" \
+ && echo "  lawfully allowed to. That is not caution — a director was" \
+ && echo "  personally convicted for the alternative on 10 July 2025." \
+ && echo ""
+
+# ══ RUNTIME ═══════════════════════════════════════════════════════════════════
+FROM node:22-alpine AS runtime
+
+RUN addgroup -S selah && adduser -S selah -G selah
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --omit=optional --no-audit --no-fund && npm cache clean --force
+
+COPY --from=verify /verify/engine/ ./engine/
+COPY --from=verify /verify/server/ ./server/
+
+# 🔴 The test harness does not ship. It has served its purpose.
+RUN rm -f server/server.test.js server/password.test.js engine/engine.test.js engine/calendar.test.js engine/books.test.js engine/accounts.test.js engine/rollup.test.js engine/money.test.js engine/forecast.test.js
+
+USER selah
+EXPOSE 3000
+
+# The healthcheck asks a compliance question, not just a liveness one.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:3000/api/healthz | grep -q ok || exit 1
+
+CMD ["node", "server/index.js"]

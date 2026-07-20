@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0A0F0D">
+<script src="assets/theme.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selah — for individuals</title>
+<meta name="description" content="What you are owed, what you owe, and what is about to change. Every number shows its working.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/home.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="index.html">
+    <svg viewBox="0 0 40 56" width="18" height="25" aria-hidden="true">
+      <rect x="6" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+      <rect x="24" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+    </svg>
+    <span>Selah</span>
+  </a>
+  <nav class="topnav">
+    <a href="calculators.html#all">Calculators</a>
+    <a href="calculators.html#calc=clock">What's coming</a>
+    <a href="individual.html">For individuals</a>
+    <a href="organisation.html">For organisations</a>
+    <button id="signout" class="ghost" hidden data-action="signOut">Sign out</button>
+    <button id="theme" class="ghost" aria-label="Toggle theme">◐</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ═══════════ 🔴 REFUSED — the whole screen, because it deserves it ═══════════ -->
+  <section>
+    <div class="card" style="max-width:460px">
+      <h2 id="v-head">Confirming your email…</h2>
+      <p id="v-body" class="hint"></p>
+      <p style="margin-top:14px"><a href="individual.html">← Back to Selah</a></p>
+    </div>
+  </section>
+</main>
+<script src="assets/api.js"></script>
+<script src="assets/verify-email.js"></script>
+</body>
+</html>

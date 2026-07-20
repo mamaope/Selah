@@ -6,7 +6,8 @@
 <meta name="theme-color" content="#0A0F0D">
 <script src="assets/theme.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Selah — For individuals</title>
+<title>Selah — for individuals</title>
+<meta name="description" content="What you are owed, what you owe, and what is about to change. Every number shows its working.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -14,62 +15,527 @@
 <link rel="stylesheet" href="assets/home.css">
 </head>
 <body>
+
 <header class="top">
   <a class="brand" href="index.html">
     <svg viewBox="0 0 40 56" width="18" height="25" aria-hidden="true">
       <rect x="6" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
       <rect x="24" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
-    </svg><span>Selah</span>
+    </svg>
+    <span>Selah</span>
   </a>
   <nav class="topnav">
     <a href="calculators.html#all">Calculators</a>
     <a href="calculators.html#calc=clock">What's coming</a>
     <a href="individual.html">For individuals</a>
     <a href="organisation.html">For organisations</a>
+    <button id="signout" class="ghost" hidden data-action="signOut">Sign out</button>
+    <button id="theme" class="ghost" aria-label="Toggle theme">◐</button>
   </nav>
 </header>
 
-<main class="home">
-  <section class="hero-home" style="border-bottom:none">
-    <p class="eyebrow">Phase 2 · not built yet</p>
-    <h1>For individuals</h1>
-    <p class="lede-home">Your TIN. Your money. Your deadlines.</p>
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     🔴 THIS BAR EXISTS BECAUSE THE APP WAS UNNAVIGABLE.
+     Seven identical tiles on one screen, "← Back" as the only way out, and on a
+     phone the top links were HIDDEN ENTIRELY — so once you were inside a screen
+     there was nothing telling you where you were or what else there was.
+     It is always on screen, and it always says which one you are looking at.
+═══════════════════════════════════════════════════════════════════════════ -->
+<nav id="appnav" class="appnav" hidden>
+  <button data-action="goHome"     data-nav="home">🏠<span>Home</span></button>
+  <button data-action="goBooks"    data-nav="books">📕<span>Books</span></button>
+  <button data-action="goAccounts" data-nav="accounts">💰<span>Accounts</span></button>
+  <button data-action="goCalendar" data-nav="calendar">📅<span>Tax dates</span></button>
+  <button data-action="goData"     data-nav="data">🔒<span>My data</span></button>
+</nav>
 
-    <div class="card" style="max-width:560px;margin-top:28px">
-      <h2 style="font-size:17px;font-weight:500;margin-bottom:14px">What it will do</h2>
-      <ul class="door-list"><li><strong>Is my employer deducting correctly?</strong> The bands changed on 1 July 2026. Many payrolls have not.</li>
-        <li><strong>My withholding tax certificates — held vs MISSING.</strong> Every 6% deducted from you is prepaid tax. Without the certificate, you pay it twice.</li>
-        <li><strong>Arrears I do not know about.</strong> Accruing at 2% a month, with no notification event.</li>
-        <li><strong>My deadlines, my documents, my return.</strong></li></ul>
-      <div class="alert alert-info" style="margin-top:16px">This is Isaac. Five years of consulting, and URA was holding close to UGX 70,000,000 of his money. He did not miscalculate anything. He simply never knew.</div>
+<main>
+
+  <!-- ═══════════ 🔴 REFUSED — the whole screen, because it deserves it ═══════════ -->
+  <section id="view-refused" hidden>
+    <div class="hero">
+      <h1>We will not store your data, because we are not yet allowed to.</h1>
+      <p class="lede" id="refused-lede"></p>
     </div>
-
-    <div class="card" style="max-width:560px;margin-top:14px;border-color:var(--emerald-600)">
-      <h2 style="font-size:17px;font-weight:500;margin-bottom:6px">We are building this now</h2>
-      <p style="font-size:14px;color:var(--ink-700);line-height:1.6;margin-bottom:14px">
-        Leave a phone number and we will tell you when it opens. We will not send you anything else.
-      </p>
-      <label>Phone number</label>
-      <input type="tel" id="phone" placeholder="+256 7xx xxx xxx" style="width:100%;font-family:var(--font-num);font-size:15px;padding:9px 11px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
-      <button class="cta" style="margin-top:12px" data-action="joined">Tell me when it opens</button>
-      <p id="ok" hidden style="font-size:13.5px;color:var(--emerald-900);background:var(--emerald-50);border:1px solid var(--emerald-100);border-radius:var(--radius);padding:11px 13px;margin-top:12px">
-        Noted. We will only contact you about this.
-      </p>
-      <p class="hint" style="margin-top:12px">
-        <strong>Not yet stored anywhere.</strong> Uganda's Data Protection and Privacy Act treats financial data as
-        special personal data, and we will not collect a single number until our PDPO registration is complete
-        and our consent architecture is right. This form is a placeholder, and it is honest about that.
-      </p>
-    </div>
-
-    <p style="margin-top:26px">
-      <a class="btn-primary" href="calculators.html">Meanwhile — find out what applies to you →</a>
-    </p>
+    <div id="refused-body"></div>
   </section>
-</main>
 
-<footer class="foot"><div class="foot-bar"><p>
-  General information, not tax advice. Uganda's tax law changes every 1 July. Rules verified 11 July 2026.
-</p></div></footer>
+  <!-- ═══════════ SIGN IN ═══════════ -->
+  <section id="view-signin" hidden>
+    <div class="hero">
+      <h1>Your money. Your tax. Your working.</h1>
+      <p class="lede"><strong>Is your employer deducting the right PAYE?</strong> URA's own website still publishes the old bands, so a payroll team doing the responsible thing is over-deducting. <strong>Is URA holding money that belongs to you?</strong> Most Ugandan consultants never collect their withholding tax certificates, and pay tax twice on the same income.</p>
+    </div>
+
+    <div class="card" style="max-width:460px">
+      <!-- ── SIGN IN ─────────────────────────────────────────────────────── -->
+      <div id="step-login">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" placeholder="you@example.com" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+
+        <label for="password" style="margin-top:10px;display:block">Password</label>
+        <input type="password" id="password" autocomplete="current-password" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+
+        <button class="cta" style="margin-top:12px;width:100%" data-action="login">Sign in</button>
+        <button class="link" style="margin-top:10px" data-action="showRegister">Create an account</button>
+        <button class="link" style="margin-top:4px" data-action="showForgot">Forgot your password?</button>
+      </div>
+
+      <!-- ── CREATE AN ACCOUNT ───────────────────────────────────────────── -->
+      <div id="step-register" hidden>
+        <label for="r-email">Email</label>
+        <input type="email" id="r-email" autocomplete="email" placeholder="you@example.com" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+
+        <label for="r-password" style="margin-top:10px;display:block">Choose a password</label>
+        <input type="password" id="r-password" autocomplete="new-password" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+        <p class="hint" style="margin-top:6px">
+          At least 10 characters. No capitals-and-a-symbol rules — those produce
+          <em>Passw0rd!</em> and nothing else. Length is what protects you.
+        </p>
+
+        <button class="cta" style="margin-top:12px;width:100%" data-action="register">Create my account</button>
+        <button class="link" style="margin-top:10px" data-action="showLogin">← I already have an account</button>
+      </div>
+
+      <!-- ── FORGOT ──────────────────────────────────────────────────────── -->
+      <div id="step-forgot" hidden>
+        <label for="f-email">Your email</label>
+        <input type="email" id="f-email" autocomplete="email" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+        <button class="cta" style="margin-top:12px;width:100%" data-action="forgot">Email me a reset link</button>
+        <button class="link" style="margin-top:10px" data-action="showLogin">← back to sign in</button>
+      </div>
+
+      <p id="signin-msg" class="hint" style="margin-top:12px"></p>
+
+      <p class="hint" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <strong>What we do with your email.</strong> We encrypt it, and we index it with a one-way
+        hash — so we can tell whether an address is already registered without ever holding a
+        readable list of our own users. Your password is hashed with scrypt and is not readable
+        by us either. You can see who has read your data, take it with you, or delete it entirely —
+        and delete means <em>delete</em>, not archive.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══════════ THE HOME — what to do next ═══════════ -->
+  <section id="view-home" hidden>
+    <!-- Carried over from sign-up: things we could NOT do, said out loud. -->
+    <div id="signup-note" class="card refuse" hidden></div>
+
+    <header class="viewhead">
+      <h2 id="home-title">Where you stand</h2>
+    </header>
+    <p class="lede" id="home-sub"></p>
+
+    <!-- 🔴 START HERE — only while there is something to set up. Then it goes. -->
+    <div id="next-step" class="stack"></div>
+
+    <!-- ══ THE DASHBOARD ═════════════════════════════════════════════════════
+         🔴 REAL FIGURES OR A DASH. NEVER A PLACEHOLDER, NEVER A SAMPLE.
+         A tile with no data shows "—" and says what to do. It does not show a
+         plausible number, because a product that shows you an invented figure has
+         taught you to distrust its real ones. -->
+    <div id="dash" class="tiles"></div>
+
+    <!-- Things you should know — a wrong PAYE band, money URA is holding. -->
+    <div id="findings" class="stack"></div>
+
+    <h3 class="group-head">Your money</h3>
+    <div class="door-grid">
+      <button class="door live" style="text-align:left" data-action="goBooks">
+        <h3><span class="dico">📕</span> My Books</h3>
+        <p>Record what came in and what went out. Set your defaults once — Selah drafts each month, and nothing counts until you say it arrived.</p>
+      </button>
+
+      <button class="door live" style="text-align:left" data-action="goAccounts">
+        <h3><span class="dico">💰</span> My accounts</h3>
+        <p>What you own, what you owe, and how many months you could survive.</p>
+      </button>
+
+      <button class="door live" style="text-align:left" data-action="goMoney">
+        <h3><span class="dico">📊</span> Budget &amp; debt tools</h3>
+        <p>Loan schedules, debt payoff, savings and retirement — with your figures kept.</p>
+      </button>
+    </div>
+
+    <h3 class="group-head">Your tax</h3>
+    <div class="door-grid">
+      <button class="door live" style="text-align:left" data-action="goPayslips">
+        <h3><span class="dico">🧾</span> Check my payslip</h3>
+        <p>Is your employer using the right 2026 bands? URA's own website still publishes the old ones.</p>
+      </button>
+
+      <button class="door live" style="text-align:left" data-action="goWht">
+        <h3><span class="dico">💸</span> What URA is holding</h3>
+        <p>The 6% withheld from your invoices is not a cost. It is your money, prepaid — and most Ugandans never claim it.</p>
+      </button>
+
+      <button class="door live" style="text-align:left" data-action="goCalendar">
+        <h3><span class="dico">📅</span> My tax calendar</h3>
+        <p>Uganda sends no reminder. No letter, no SMS. The arrear just starts, at 2% a month.</p>
+      </button>
+    </div>
+
+    <h3 class="group-head">Your data</h3>
+    <div class="door-grid">
+      <button class="door live" style="text-align:left" data-action="goData">
+        <h3><span class="dico">🔒</span> Who has read my data</h3>
+        <p>Every read is logged. Take it with you, or delete it — and delete means delete, not archive.</p>
+      </button>
+    </div>
+  </section>
+
+  <section id="view-payslips" hidden>
+    <div class="hero">
+      <button class="ghost back" data-action="goHome">← Back</button>
+      <h1>Is your employer deducting the right PAYE?</h1>
+      <p class="lede">
+        Add your payslips. We recompute the tax from the <strong>gazetted Act</strong> and show you the difference.
+      </p>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Add a payslip</h2>
+        <label>Month</label>
+        <input type="month" id="ps-period" style="width:100%;font-family:var(--font-num);padding:9px 11px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+        <label>Employer</label>
+        <input type="text" id="ps-employer" placeholder="Who pays you">
+        <label>Gross pay (UGX)</label>
+        <input type="number" id="ps-gross" step="10000" placeholder="1000000">
+        <label>PAYE they deducted (UGX)</label>
+        <input type="number" id="ps-paye" step="1000" placeholder="What the payslip says">
+        <button class="cta" style="margin-top:12px;width:100%" data-action="addPayslip">Add and check</button>
+        <p class="hint" style="margin-top:10px">Take it straight off the payslip. Do not round.</p>
+      </div>
+      <div id="out-payslips"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ WHT ═══════════ -->
+  <section id="view-wht" hidden>
+    <div class="hero">
+      <button class="ghost back" data-action="goHome">← Back</button>
+      <h1>What URA is holding that belongs to you</h1>
+      <p class="lede">
+        Withholding tax is <strong>not a cost. It is prepaid tax</strong> — a credit against your income tax.
+        <strong>But only if you hold the certificate.</strong> A credit you cannot evidence is a credit you do not have.
+      </p>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Add an invoice</h2>
+        <label>Date</label>
+        <input type="date" id="wi-date" style="width:100%;font-family:var(--font-num);padding:9px 11px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+        <label>Who you invoiced</label>
+        <input type="text" id="wi-client" placeholder="Government body, or a large company">
+        <label>Invoice amount (UGX)</label>
+        <input type="number" id="wi-amount" step="100000" placeholder="5000000">
+        <label>What was it for?</label>
+        <select id="wi-type"></select>
+        <label class="check"><input type="checkbox" id="wi-cert"> I hold the withholding tax certificate</label>
+        <button class="cta" style="margin-top:12px;width:100%" data-action="addInvoice">Add</button>
+      </div>
+      <div id="out-wht"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ MONEY ═══════════ -->
+  <section id="view-money" hidden>
+    <div class="hero">
+      <button class="ghost back" data-action="goHome">← Back</button>
+      <h1>My money</h1>
+      <p class="lede">
+        Use your <strong>take-home</strong> pay, not your gross. PAYE and NSSF have already gone —
+        budgeting from gross is the most common way to be wrong by 30%.
+      </p>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Add an item</h2>
+        <label>What is it?</label>
+        <select id="mn-kind">
+          <option value="income">Income — take-home</option>
+          <option value="expense">An expense</option>
+          <option value="debt">A debt</option>
+          <option value="asset">Something I own</option>
+          <option value="liability">Something I owe</option>
+        </select>
+        <label>Name it</label>
+        <input type="text" id="mn-label" placeholder="Rent, salary, bank loan…">
+        <label>Amount (UGX)</label>
+        <input type="number" id="mn-amount" step="10000">
+        <label>Interest rate, if it is a debt (%/year)</label>
+        <input type="number" id="mn-rate" step="0.5" placeholder="24">
+        <button class="cta" style="margin-top:12px;width:100%" data-action="addMoney">Add</button>
+      </div>
+      <div id="out-money"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ MY DATA — the rights, in the product ═══════════ -->
+  <!-- ══ THE TAX CALENDAR ══════════════════════════════════════════════════ -->
+  <section id="view-calendar" hidden>
+    <header class="viewhead">
+      <button class="ghost back" data-action="goHome">← Back</button>
+      <h2>My tax calendar</h2>
+    </header>
+
+    <p class="lede">
+      Every date below is computed from the Act — not typed into a spreadsheet once
+      and forgotten. When the law changes, these change.
+    </p>
+
+    <div id="cal-list" class="stack"></div>
+
+    <!-- 🔴 THE UNASKED QUESTIONS. Not asking is not the same as "no". -->
+    <div id="cal-unasked" class="stack" hidden>
+      <h3>We have not asked you these yet</h3>
+      <p class="muted">An unanswered question is not a clean bill of health. Until you answer, we will not put a deadline on your screen — and we will not pretend there isn't one.</p>
+      <div id="cal-questions" class="stack"></div>
+    </div>
+
+    <!-- 🔑 THE DIRECTOR TRAP -->
+    <div id="cal-trap" class="stack" hidden></div>
+
+    <details class="disclose">
+      <summary>What this calendar cannot tell you</summary>
+      <ul id="cal-cannot"></ul>
+    </details>
+
+    <p class="src" id="cal-src"></p>
+  </section>
+
+  <!-- ══ BOOKS ═══════════════════════════════════════════════════════════ -->
+  <section id="view-books" hidden>
+    <header class="viewhead">
+      <button class="ghost back" data-action="goHome">← Home</button>
+      <h2>My Books</h2>
+    </header>
+    <p class="lede">A Book is where your money in and money out live. Most people keep one called <strong>Home</strong> — add others for a shop, rentals, or a build.</p>
+
+    <div id="bk-books" class="stack"></div>
+
+    <div class="card">
+      <h3>Add another Book</h3>
+      <div class="row" style="margin-top:.5rem">
+        <input type="text" id="bk-newname" placeholder="Shop, Rentals, The build in Mukono" style="flex:1;min-width:12rem">
+        <button class="primary" data-action="bkAddBook">Create</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ ONE BOOK — the month ════════════════════════════════════════════ -->
+  <section id="view-book" hidden>
+    <header class="viewhead">
+      <button class="ghost back" data-action="goBooks">← Books</button>
+      <h2 id="bk-title">Book</h2>
+    </header>
+
+    <!-- ══ THE MONTH NAVIGATOR ═══════════════════════════════════════════════
+         A Book shows ONE month at a time. You walk backward to see what you spent,
+         and forward to plan. Where you are decides what is honest to show: the past
+         is closed, the present is live, and the FUTURE HAS NOT HAPPENED — so there
+         is nothing to record there, only a budget to set. -->
+    <div class="monthnav">
+      <button class="ghost" data-action="bkPrevMonth" aria-label="Previous month">‹</button>
+      <div class="monthnav-l"><strong id="bk-month-label">This month</strong><span id="bk-month-tag"></span></div>
+      <button class="ghost" data-action="bkNextMonth" aria-label="Next month">›</button>
+      <button class="link" id="bk-today" data-action="bkThisMonth" hidden>Today</button>
+    </div>
+
+    <div class="tabs">
+      <!-- 🔑 THE ORDER IS THE STORY: what happened → what I planned → what I expect
+           every month → what is coming. Budget sits next to the month it judges. -->
+      <button class="tab active" data-action="bkTab" data-tab="month">This month</button>
+      <button class="tab" data-action="bkTab" data-tab="budget">Budget</button>
+      <button class="tab" data-action="bkTab" data-tab="plan">My defaults</button>
+      <button class="tab" data-action="bkTab" data-tab="ahead">What&#39;s coming</button>
+    </div>
+
+    <!-- ══ MY DEFAULTS — the template. This is "set it once". ═══════════════ -->
+    <div id="bk-pane-plan" class="stack" hidden>
+      <div class="card">
+        <h3>What does a normal month look like?</h3>
+        <p class="muted">Set your salary, your rent, your regular bills — once. Each month Selah will put them
+          on the screen for you, ready, as <strong>drafts</strong>. Nothing counts until you confirm it arrived.</p>
+
+        <div class="tablewrap">
+          <table class="t">
+            <thead><tr>
+              <th>In / out</th>
+              <th>What</th>
+              <th class="num">Usual amount</th>
+              <th>Category</th>
+              <th></th>
+            </tr></thead>
+            <tbody id="tpl-lines"></tbody>
+          </table>
+        </div>
+        <button class="ghost" data-action="tplAddLine">+ Add a line</button>
+
+        <div class="row" style="gap:.5rem;margin-top:.8rem;flex-wrap:wrap">
+          <select id="tpl-cadence">
+            <option value="monthly">Every month</option>
+            <option value="weekly">Every week</option>
+            <option value="quarterly">Every quarter</option>
+            <option value="annual">Every year</option>
+          </select>
+          <input type="date" id="tpl-anchor" hidden>
+          <button class="primary" data-action="tplSave">Save my defaults</button>
+        </div>
+        <p class="hint" id="tpl-anchor-hint" hidden>A quarter or a year has no natural start. Tell us when yours begins — we will not assume January.</p>
+        <p id="tpl-msg" class="hint"></p>
+      </div>
+
+      <div class="card">
+        <button class="primary" data-action="bkStage">Draft this month from my defaults</button>
+        <p class="hint">Puts this month&#39;s expected lines on your screen. They are counted in nothing until you confirm them.</p>
+      </div>
+    </div>
+
+    <!-- ══ BUDGET — ONE EDITABLE TABLE, AND NOTHING ELSE ═══════════════════
+         🔴 A SUGGESTION MAY FILL THE FORM. IT MAY NOT BE THE BUDGET.
+         Empty rows are pre-filled from your own history, marked "suggested", and
+         they count for NOTHING — not the on-track line, not budget vs actual —
+         until a human presses Save. A number nobody chose must never quietly
+         become the thing you measure yourself against. -->
+    <div id="bk-pane-budget" class="stack" hidden>
+      <div class="card">
+        <div class="cardhead">
+          <h3>Budget</h3>
+          <div class="row">
+            <input type="date" id="bg-from" aria-label="Budget period from">
+            <input type="date" id="bg-to" aria-label="Budget period to">
+            <button class="primary" data-action="bgSaveAll">Save budget</button>
+          </div>
+        </div>
+        <div id="bk-budget"></div>
+        <p id="bg-msg" class="hint"></p>
+      </div>
+    </div>
+
+    <div id="bk-pane-month">
+    <!-- 🔴 THE DRAFTS. Grey. Counted in NOTHING. -->
+    <div id="bk-drafts" class="stack"></div>
+
+    <!-- what actually happened -->
+    <div id="bk-summary" class="stack"></div>
+
+    </div><!-- /bk-pane-month -->
+
+    <div id="bk-pane-ahead" class="stack" hidden>
+      <div id="bk-forecast" class="stack"></div>
+    </div>
+  </section>
+
+  <!-- ══ ACCOUNTS + HEALTH ═══════════════════════════════════════════════ -->
+  <section id="view-accounts" hidden>
+    <header class="viewhead">
+      <button class="ghost back" data-action="goHome">← Home</button>
+      <h2>My accounts</h2>
+    </header>
+    <p class="lede">Where your money actually sits. <strong>We cannot see your balances</strong> — there is no Open Banking in Uganda and we will not screen-scrape. So we compute them from what you record, and then you check us against reality.</p>
+    <div id="ac-health" class="stack"></div>
+    <div id="ac-list" class="stack"></div>
+    <div class="card">
+      <h3>Add an account</h3>
+      <p class="hint" style="margin-top:0">Cash, MTN MoMo, the bank, a SACCO, a loan, land. Everything else in Selah is built on these.</p>
+      <div class="row" style="margin-top:.6rem">
+        <input type="text" id="ac-name" placeholder="MTN MoMo" style="flex:1;min-width:10rem">
+        <select id="ac-type"></select>
+        <select id="ac-cur"><option value="UGX">UGX</option><option value="USD">USD</option></select>
+        <button class="primary" data-action="acAdd">Add</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-data" hidden>
+    <div class="hero">
+      <button class="ghost back" data-action="goHome">← Back</button>
+      <h1>Your data</h1>
+      <p class="lede">
+        Everything we hold, <strong>who has read it</strong>, and how to take it away.
+        Most platforms bury this in a support ticket.
+      </p>
+    </div>
+    <div id="out-data"></div>
+  </section>
+
+</main>
+<!-- The sheet. Opens over the page, keeps the context behind it, and STAYS OPEN
+     after a save so a day's spending can be entered in a run. -->
+<div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+  <div class="sheet-panel">
+    <header class="sheet-head">
+      <h3 id="sheet-title">Record what happened</h3>
+      <button class="ghost" data-action="bkCloseSheet" aria-label="Close">✕</button>
+    </header>
+
+    <div class="sheet-body">
+      <div class="seg" role="group" aria-label="Money in or out">
+        <button class="seg-b active" data-action="bkDir" data-dir="out">Money out</button>
+        <button class="seg-b" data-action="bkDir" data-dir="in">Money in</button>
+        <button class="seg-b" data-action="bkDir" data-dir="transfer">Transfer</button>
+      </div>
+
+      <label for="bk-amount">Amount</label>
+      <input type="number" id="bk-amount" inputmode="numeric" placeholder="0" autocomplete="off">
+
+      <label for="bk-label">What was it?</label>
+      <input type="text" id="bk-label" placeholder="Boda, gas, shopping, salary" autocomplete="off">
+
+      <div class="two">
+        <div>
+          <label for="bk-cat">Category</label>
+          <select id="bk-cat"></select>
+        </div>
+        <div>
+          <label for="bk-date">When</label>
+          <input type="date" id="bk-date">
+        </div>
+      </div>
+
+      <div id="bk-acct-one">
+        <label for="bk-acct">Which account?</label>
+        <select id="bk-acct"><option value="">— choose —</option></select>
+        <p class="hint">Required. We will not guess where your money moved — a guessed account puts your rent in the wrong pocket and never tells you.</p>
+      </div>
+
+      <div id="bk-acct-two" hidden class="two">
+        <div>
+          <label for="bk-from">From</label>
+          <select id="bk-from"></select>
+        </div>
+        <div>
+          <label for="bk-to">To</label>
+          <select id="bk-to"></select>
+        </div>
+      </div>
+
+      <p id="bk-sheet-msg" class="hint"></p>
+    </div>
+
+    <footer class="sheet-foot">
+      <button class="ghost" data-action="bkCloseSheet">Done</button>
+      <button class="primary" data-action="bkAddEntry">Record it</button>
+    </footer>
+  </div>
+</div>
+
+
+<footer>
+  <p><strong>What this is.</strong> The Selah rules engine, running on your data. Every figure was produced by executing a versioned rule and citing the law it came from.</p>
+  <p><strong>What this is not.</strong> Tax advice. Confirm with a licensed Ugandan tax adviser before acting.</p>
+  <p class="stamp">Uganda's tax law changes every 1 July. Rules verified 11 July 2026.</p>
+</footer>
+
+<script src="assets/engine.bundle.js"></script>
+<script src="assets/api.js"></script>
+<script src="assets/individual.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/books.js"></script>
 </body>
 </html>

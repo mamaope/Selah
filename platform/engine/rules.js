@@ -626,22 +626,69 @@ const FILING_CALENDAR = {
   id: 'UG.CALENDAR.2026',
   label: 'Filing calendar',
   confidence: CONFIDENCE.A,
-  verifiedOn: '2026-07-11',
-  source: { instrument: 'Income Tax Act Cap. 338; VAT Act Cap. 349; NSSF Act', provision: 'various', corroboration: ['RSM Uganda Tax Guide 2025/26'] },
+  effectiveFrom: '2026-07-01',
+  verifiedOn: '2026-07-12',
+  source: {
+    instrument: 'Income Tax Act Cap. 338; VAT Act Cap. 349; NSSF Act Cap. 230; Tax Procedures Code Act Cap. 343',
+    provision: 'ITA s.121-122 (provisional tax), s.92 (return); VAT Act s.31',
+    corroboration: ['PwC WWTS Uganda - Tax administration (individual and corporate)', 'RSM Uganda Tax Guide 2025/26'],
+  },
+
+  /**
+   * THE YEAR OF INCOME IS NOT THE CALENDAR YEAR, AND THIS RULE ONCE DID NOT SAY SO.
+   *
+   * `months: [3, 6, 9, 12]` sat in this file meaning NOTHING. Months of WHAT?
+   *
+   *   Read as CALENDAR months     -> 31 Mar / 30 Jun / 30 Sep / 31 Dec
+   *   Read as months of the YEAR OF INCOME -> 30 Sep / 31 Dec / 31 Mar / 30 Jun
+   *
+   * The same four dates on a page. But the FIRST instalment of the year lands in
+   * SEPTEMBER, not March. A taxpayer told in August that their next provisional
+   * payment is due on 31 March has been told something that costs them 2% a month
+   * from the 1st of October.
+   *
+   * The statute (ITA s.121-122) counts months OF THE YEAR OF INCOME, and payment is
+   * due BEFORE THE LAST DAY of that month - not on the 15th.
+   *
+   * An ambiguity in a rule is a wrong number waiting for a renderer to pick a side.
+   * The renderer must never be the one who decides.
+   */
+  yearOfIncome: {
+    startsMonth: 7,
+    endsMonth: 6,
+    note: 'The default year of income for INDIVIDUALS is fixed: 1 July - 30 June. A company may be granted a SUBSTITUTED year of income under s.39, in which case every month index below shifts with it. The engine must be TOLD the year end. It must never assume June for an entity.',
+  },
+  instalmentBasis: 'months_of_the_year_of_income',
+  instalmentDueOn: 'last_day_of_that_month',
+
   obligations: [
-    { key: 'paye',        label: 'PAYE return + remittance',     cadence: 'monthly',   day: 15, who: 'employers' },
-    { key: 'wht',         label: 'WHT return + remittance',      cadence: 'monthly',   day: 15, who: 'withholding agents' },
-    { key: 'nssf',        label: 'NSSF remittance',              cadence: 'monthly',   day: 15, who: 'employers' },
-    { key: 'vat',         label: 'VAT return + payment',         cadence: 'monthly',   day: 15, who: 'VAT-registered' },
-    { key: 'prov_co',     label: 'Provisional tax — companies',  cadence: 'biannual',  months: [6, 12], who: 'non-individuals', formula: '(50% × estimated annual tax) − WHT already withheld' },
-    { key: 'prov_ind',    label: 'Provisional tax — individuals',cadence: 'quarterly', months: [3, 6, 9, 12], who: 'individuals', formula: '(25% × estimated annual tax) − WHT already withheld' },
-    { key: 'final',       label: 'Self-assessment return',       cadence: 'annual',    monthsAfterYearEnd: 6, who: 'all' },
-    { key: 'lst',         label: 'Local Service Tax',            cadence: 'annual',    fixedDate: '31 October', who: 'employers → local authority' },
+    { key: 'paye',     label: 'PAYE return + remittance',      cadence: 'monthly',   day: 15, who: 'employers',          of: 'the month AFTER the month deducted' },
+    { key: 'wht',      label: 'WHT return + remittance',       cadence: 'monthly',   day: 15, who: 'withholding agents', of: 'the month AFTER the month withheld' },
+    { key: 'nssf',     label: 'NSSF remittance',               cadence: 'monthly',   day: 15, who: 'employers',          of: 'the month AFTER the month of the wage' },
+    { key: 'vat',      label: 'VAT return + payment',          cadence: 'monthly',   day: 15, who: 'VAT-registered',     of: 'the month AFTER the tax period' },
+    { key: 'prov_co',  label: 'Provisional tax - companies',   cadence: 'biannual',  monthsOfYearOfIncome: [6, 12],       dueOn: 'last_day', who: 'non-individuals', formula: '(50% x estimated annual tax) - WHT already withheld' },
+    { key: 'prov_ind', label: 'Provisional tax - individuals', cadence: 'quarterly', monthsOfYearOfIncome: [3, 6, 9, 12], dueOn: 'last_day', who: 'individuals with non-employment income', formula: '(25% x estimated annual tax) - WHT already withheld' },
+    { key: 'final',    label: 'Income tax return (self-assessment)', cadence: 'annual', monthsAfterYearEnd: 6, dueOn: 'last_day', who: 'all with a return obligation' },
+    { key: 'lst',      label: 'Local Service Tax',             cadence: 'annual',    fixedDate: '31 October', who: 'employers -> local authority' },
   ],
+
+  /**
+   * WHAT WE DO NOT KNOW, SAID OUT LOUD.
+   *
+   * We have NOT verified what happens when a due date falls on a Saturday, Sunday or
+   * a public holiday. Most tax systems roll forward to the next working day. We have
+   * not found the Ugandan provision that says so, and WE WILL NOT INVENT ONE.
+   *
+   * So the calendar shows the STATUTORY date, always, and never quietly rolls it.
+   * Paying early is never penalised. Assuming a grace day that may not exist is.
+   */
+  weekendRollForward: null,
+
   notes: [
     'THE BELIEF THAT TAX IS AN ANNUAL EVENT IS PRECISELY THE BELIEF THAT PRODUCES ARREARS.',
     'It is a CONTINUOUS obligation: monthly, provisional, and annual.',
-    'Understating a provisional estimate: 20% × (tax on 90% of final chargeable income − tax on the estimate).',
+    'Understating a provisional estimate: 20% x (tax on 90% of final chargeable income - tax on the estimate).',
+    'An EMPLOYEE whose only income is taxed under PAYE generally has no provisional tax obligation. A person with rental, business, consultancy or professional income DOES - and it is the most-missed obligation in Uganda, because nobody sends you a reminder.',
   ],
 };
 

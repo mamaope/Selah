@@ -1,35 +1,77 @@
-# Selah — local
+# ══════════════════════════════════════════════════════════════════════════════
+# SELAH — the whole thing.
 #
-#   docker compose up --build      → http://localhost:8080
-#   docker compose run --rm test   → the 101 engine tests, on their own
+# 🔴 RUN DOCKER FROM platform/. THIS FILE LIVES HERE AND NOWHERE ELSE.
 #
-# The build itself runs the tests. If a Ugandan tax rule is wrong, `up` fails.
+#    It briefly lived at the repository root, which meant the build contexts
+#    said ./platform and the preflight said platform/preflight.js — two paths
+#    that had to agree with a directory you were standing in. They will not,
+#    forever, and the failure is a confusing one.
+#
+#    The Dockerfiles, nginx.conf, the engine and the tests are all HERE. The
+#    compose file belongs beside the thing it builds.
+#
+#     cd platform
+#     cp .env.example .env      # then fill it in — see below
+#     npm run preflight         # 🔑 checks your .env BEFORE Docker does
+#     docker compose up --build
+#
+#         web  → http://localhost:8080   the calculators. No account. Stores nothing.
+#         api  → http://localhost:3000   the individual layer.
+#         db   → not exposed. The API is the only thing that talks to it.
+#
+# 🔴 THERE USED TO BE THREE COMPOSE FILES — one inside platform/, one for the API,
+#    and a fragment. Running `docker compose build` from the repo root gave:
+#
+#        no configuration file provided: not found
+#
+#    ...and the one in platform/ had ALSO shipped TRUNCATED, cut off mid-
+#    healthcheck at `require('/opt/s`. It would have failed even from the right
+#    directory.
+#
+#    Three files that must agree with each other are three files that will not.
+#    This is now the ONLY compose file. If you go looking for another, there
+#    isn't one, and that is deliberate.
+#
+# 🔴 BEFORE THE FIRST RUN. The API will not start without these:
+#
+#        openssl rand -hex 32   →  SELAH_ENCRYPTION_KEY
+#        openssl rand -hex 32   →  SELAH_INDEX_KEY       (a DIFFERENT one)
+#        anything strong        →  POSTGRES_PASSWORD
+#
+#    And LEAVE THE PDPO VARIABLES EMPTY until the certificate is in your hand.
+#    While they are empty, every endpoint that would store a payslip, a TIN, a
+#    phone number or an invoice returns HTTP 451 — Unavailable For Legal Reasons.
+#
+#    That is not a bug to route around. It is the only thing standing between a
+#    tired founder and the outcome that befell a digital lender's DIRECTOR, who
+#    was PERSONALLY CONVICTED on 10 July 2025 for failing to register.
+# ══════════════════════════════════════════════════════════════════════════════
 
 services:
-  selah:
+
+  # ── the calculators. Public, free, and they store nothing. ─────────────────
+  web:
     build:
       context: .
       dockerfile: Dockerfile
       target: runtime
-    image: selah:latest
-    container_name: selah
+    image: selah-web:latest
+    container_name: selah-web
     ports:
       - "8080:8080"
     restart: unless-stopped
 
-    # Nothing here writes to disk. Nothing here needs to.
     read_only: true
 
-    # 🔴 THE TMPFS MOUNTS MUST BE OWNED BY 101.
+    # 🔴 A TMPFS ARRIVES ROOT-OWNED. This is what broke the very first build.
+    #    nginx runs as uid 101 (we refuse to run it as root) and cannot create
+    #    its own cache directories inside a root-owned tmpfs:
     #
-    # This is what broke the first build. A tmpfs arrives ROOT-OWNED by default,
-    # so nginx (uid 101, because we refuse to run as root) cannot create its own
-    # cache directories inside it, and dies on boot:
+    #      nginx: [emerg] mkdir() "/var/cache/nginx/client_temp" failed (13: Permission denied)
     #
-    #     nginx: [emerg] mkdir() "/var/cache/nginx/client_temp" failed (13: Permission denied)
-    #
-    # "Read-only and unprivileged" is not one switch. It is two, and they have to
-    # agree with each other.
+    #    "Read-only" and "unprivileged" are not one switch. They are two, and
+    #    they have to agree with each other.
     tmpfs:
       - /tmp:mode=1777,uid=101,gid=101
       - /var/cache/nginx:mode=0700,uid=101,gid=101
@@ -38,21 +80,122 @@ services:
     user: "101:101"
     security_opt:
       - no-new-privileges:true
-    # Nothing runs as root, so nothing needs to drop privileges. Drop everything.
-    cap_drop:
-      - ALL
+    cap_drop: [ALL]
 
-    # A slow connection is not an excuse for a slow container.
     deploy:
       resources:
         limits:
           memory: 128M
           cpus: "0.5"
 
+    # 🔑 THE HEALTHCHECK ASKS A TAX QUESTION.
+    #    Not "is the port open" — "does it still compute Ugandan tax correctly,
+    #    and does it still REFUSE what it does not know?" A container serving a
+    #    wrong PAYE band is not healthy. It is dangerous, and it is up.
     healthcheck:
-      # Not "is the port open". "Does it still compute Ugandan tax correctly —
-      # and does it still refuse what it does not know."
-      test:
-        - CMD-SHELL
-        - >-
-          node -e "global.window={};require('/opt/s
+      test: ["CMD-SHELL", "node -e \"global.window={};require('/opt/selah/engine.bundle.js');const S=window.Selah;if(S.paye(1000000).result!==188250)throw new Error('PAYE IS WRONG');if(!S.paye(1000000,'non-resident').refused)throw new Error('WE HAVE STARTED GUESSING');\" && wget -q --spider http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+
+  # ── the individual layer. Gated. ───────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: runtime
+    image: selah-api:latest
+    container_name: selah-api
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://selah:${POSTGRES_PASSWORD}@db:5432/selah
+      MIGRATE: "true"
+
+      # 🔴 REQUIRED AT RUNTIME — BUT NOT TO BUILD.
+      #
+      # These used to use the `:?` required-variable syntax, which Docker resolves
+      # AT PARSE TIME. So `docker compose build` — a command that does not run
+      # anything and touches no data — refused to run without an encryption key.
+      #
+      # That is wrong. You must be able to build this image on a CI box that has
+      # never seen a secret and never should.
+      #
+      # The gate is not weakened: `server/lib/crypto.js` REFUSES TO START without
+      # the key, and its error message is far better than Docker's. The check
+      # belongs where the risk is — at the moment data could be written — not at
+      # the moment an image is assembled.
+      SELAH_ENCRYPTION_KEY: ${SELAH_ENCRYPTION_KEY:-}
+      SELAH_INDEX_KEY: ${SELAH_INDEX_KEY:-}
+
+      # 🔴 LEAVE EMPTY UNTIL THEY ARE TRUE. See the header of this file.
+      PDPO_REGISTRATION_NUMBER: ${PDPO_REGISTRATION_NUMBER:-}
+      PDPO_REGISTERED_ON: ${PDPO_REGISTERED_ON:-}
+      DPO_NAME: ${DPO_NAME:-}
+      DPO_EMAIL: ${DPO_EMAIL:-}
+
+      # ── EMAIL ────────────────────────────────────────────────────────────
+      # 🔴 THESE WERE MISSING, AND THE FAILURE WOULD HAVE BEEN INVISIBLE.
+      #
+      # lib/mail.js reads MAIL_API_URL / MAIL_API_KEY / MAIL_FROM from the
+      # environment. They were in .env and in .env.example — and they were NOT in
+      # THIS FILE, so the container never received them. You could have configured a
+      # mail provider correctly, restarted, and had the server go on insisting it
+      # was unconfigured, forever, with no error anywhere.
+      #
+      # An environment variable that is set everywhere except the one place that
+      # reads it is worse than one that is missing.
+      MAIL_API_URL: ${MAIL_API_URL:-}
+      MAIL_API_KEY: ${MAIL_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+
+      # The origin used to build the links inside those emails.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+
+      SMS_PROVIDER_URL: ${SMS_PROVIDER_URL:-}
+
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/healthz | grep -q ok"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # ── the database. NOT exposed to the host. ─────────────────────────────────
+  #    It holds Ugandans' payslips. There is no `ports:` block, deliberately.
+  #    The API is the only thing that talks to it.
+  db:
+    image: postgres:16-alpine
+    container_name: selah-db
+    environment:
+      POSTGRES_DB: selah
+      POSTGRES_USER: selah
+      # Postgres itself refuses to initialise without this, with a clear message.
+      # We do not need to duplicate that check and break `build` to do it.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      - selah-db:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U selah -d selah"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  selah-db:

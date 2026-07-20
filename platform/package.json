@@ -2,12 +2,21 @@
   "devDependencies": {
     "@playwright/test": "^1.48.0",
     "jsdom": "^29.1.1",
-    "playwright": "^1.48.0"
+    "playwright": "^1.48.0",
+    "supertest": "^7.0.0"
   },
   "scripts": {
-    "test": "node engine/engine.test.js && node web/ui.test.js",
+    "test": "node engine/engine.test.js && node engine/calendar.test.js && node engine/books.test.js && node engine/accounts.test.js && node engine/rollup.test.js && node engine/money.test.js && node engine/forecast.test.js && node web/ui.test.js && node web/individual.test.js && node web/organisation.test.js && node server/password.test.js && node server/server.test.js",
     "build": "node build.js",
     "e2e": "playwright test",
-    "e2e:install": "playwright install --with-deps chromium"
+    "e2e:install": "playwright install --with-deps chromium",
+    "test:server": "node server/server.test.js",
+    "api": "node server/index.js",
+    "preflight": "node preflight.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.1",
+    "pg": "^8.13.1"
   }
 }

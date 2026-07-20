@@ -4,6 +4,38 @@ const fs = require('fs');
 const path = require('path');
 
 // ═════════════════════════════════════════════════════════════════════════════
+// 🔴 WHERE AM I RUNNING?
+//
+// build.js runs in TWO places, and they are not the same place:
+//
+//   1. ON A DEVELOPER'S MACHINE, in the repository. Everything is here:
+//      docker-compose.yml, .dockerignore, the Dockerfiles, package.json.
+//
+//   2. INSIDE THE DOCKER BUILD, where the context contains ONLY what the
+//      Dockerfile COPYs — engine/, web/, build.js, nginx.conf — because
+//      .dockerignore (correctly) keeps the orchestration files out of the image.
+//
+// I wrote guards that check docker-compose.yml for truncation and cross-check
+// .dockerignore against the Dockerfiles. Excellent guards. And they ran INSIDE
+// the container, found no docker-compose.yml, concluded it had been truncated to
+// nothing, and KILLED THE BUILD.
+//
+// A guard that fires where it cannot possibly be right is not a guard. It is a
+// second bug wearing the costume of the first.
+//
+// So: the orchestration checks run only where the orchestration files live. They
+// are not "skipped" in the container — they are NOT APPLICABLE there, and that
+// is a different thing. They still run on every `npm run build` and every
+// `npm test`, which is where a developer would actually break them.
+// ═════════════════════════════════════════════════════════════════════════════
+const IN_REPO = fs.existsSync(path.join(__dirname, 'docker-compose.yml'))
+             && fs.existsSync(path.join(__dirname, '.dockerignore'));
+
+if (!IN_REPO) {
+  console.log('  (in-container build — orchestration checks not applicable here)');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // 🔴 NO MACHINE-SPECIFIC PATHS. EVER.
 //
 // The UI smoke test was written in a sandbox and carried that sandbox's absolute
@@ -50,6 +82,177 @@ const FORBIDDEN = [
   }
 })();
 
+// ═════════════════════════════════════════════════════════════════════════════
+// GUARD 0 — DOES EVERY JAVASCRIPT FILE ACTUALLY PARSE?
+//
+// 🔴 ON 12 JULY 2026 THE FILE THAT IS THIS COMPANY WAS TRUNCATED ON DISK.
+//
+// engine/rules.js — 29 Ugandan tax rules, every band, every source, every
+// confidence grade — was cut off MID-STRING at byte 72,693:
+//
+//     text: 'YOUR ADVISER MAY TELL YOU THIS IS 3%. IT IS NOT. The Stamp Duty
+//                                                        <-- end of file
+//
+// A write had been silently capped. The file did not parse. `git status` said
+// the working tree was CLEAN, because git trusted a stat cache that was lying to
+// it. Nothing anywhere noticed. Minutes earlier, 408 tests had passed — against
+// the file as it was BEFORE the write.
+//
+// The same thing then happened to engine/calendar.js, in the same session.
+//
+// This is the nginx.conf truncation all over again, and that is the point: THE
+// SAME FAILURE HAS NOW HAPPENED THREE TIMES. Every artefact must be validated by
+// the thing that will consume it. Node consumes the JavaScript. So NODE — not a
+// regex, not a byte count, not a hopeful glance — must be the one to say whether
+// a JavaScript file is whole.
+//
+// `new vm.Script(src)` is exactly what `node --check` does. It costs milliseconds
+// and it makes a half-written engine UNBUILDABLE.
+// ═════════════════════════════════════════════════════════════════════════════
+{
+  const vm = require('vm');
+  const roots = ['engine', 'web/assets', 'server', 'server/lib', 'server/routes'];
+  const bad = [];
+  let checked = 0;
+
+  for (const r of roots) {
+    const dir = path.join(__dirname, r);
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.endsWith('.js')) continue;
+      // engine.bundle.js is GENERATED further down this very file. Checking it
+      // here would only ever tell us about the LAST build, not this one.
+      if (f === 'engine.bundle.js') continue;
+      const full = path.join(dir, f);
+      if (!fs.statSync(full).isFile()) continue;
+      const src = fs.readFileSync(full, 'utf8');
+      checked++;
+      try {
+        new vm.Script(src, { filename: full });
+      } catch (e) {
+        bad.push({ file: path.join(r, f), err: e.message, bytes: src.length });
+      }
+    }
+  }
+
+  if (bad.length) {
+    console.error('\n🔴 A JAVASCRIPT FILE DOES NOT PARSE. THE BUILD STOPS HERE.\n');
+    for (const b of bad) {
+      console.error(`   ${b.file}  (${b.bytes.toLocaleString()} bytes)`);
+      console.error(`      ${b.err}\n`);
+    }
+    console.error('   A truncated file has reached disk before. If the error is at the very');
+    console.error('   end of the file, SUSPECT A CAPPED WRITE, not a typo. Check the byte');
+    console.error('   count against git: `git show HEAD:<file> | wc -c`.\n');
+    process.exit(1);
+  }
+  console.log(`  ✓ ${checked} JavaScript files parse.`);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// GUARD — NGINX MUST NOT RESOLVE AN UPSTREAM AT CONFIG-PARSE TIME.
+//
+// 🔴 `proxy_pass http://api:3000;` MADE THE WEB IMAGE UNBUILDABLE.
+//
+// A LITERAL hostname in proxy_pass is resolved by nginx when it PARSES the
+// config. `nginx -t` runs inside the image build, where no `api` container
+// exists, so it died:
+//
+//     [emerg] host not found in upstream "api"
+//
+// The config was right for runtime and impossible at build time. The fix is a
+// VARIABLE in proxy_pass (which defers the lookup to request time) plus a
+// `resolver`. That is also strictly better at runtime: a config-time lookup pins
+// the API's IP forever, so a redeployed container would leave nginx proxying into
+// a black hole behind a perfectly valid config.
+//
+// This guard exists because the fix is easy to undo. Somebody debugging a proxy
+// will "simplify" it back to a literal, the image will stop building, and they
+// will blame nginx.
+// ═════════════════════════════════════════════════════════════════════════════
+{
+  const confPath = path.join(__dirname, 'nginx.conf');
+  if (fs.existsSync(confPath)) {
+    // Strip comments FIRST. This guard has cried wolf at its own prose before.
+    const conf = fs.readFileSync(confPath, 'utf8')
+      .split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
+
+    const passes = [...conf.matchAll(/proxy_pass\s+([^;]+);/g)].map((m) => m[1].trim());
+    const literal = passes.filter((u) => !u.includes('$'));
+
+    if (literal.length) {
+      console.error('\n🔴 nginx.conf has a LITERAL upstream in proxy_pass. THE IMAGE WILL NOT BUILD.\n');
+      literal.forEach((u) => console.error(`   proxy_pass ${u};`));
+      console.error('\n   nginx resolves a literal hostname when it PARSES the config, and `nginx -t`');
+      console.error('   runs at BUILD time, when no such container exists:');
+      console.error('       [emerg] host not found in upstream "api"\n');
+      console.error('   Use a variable so the lookup happens at REQUEST time:');
+      console.error('       resolver 127.0.0.11 valid=10s ipv6=off;');
+      console.error('       set $selah_api api;');
+      console.error('       proxy_pass http://$selah_api:3000$request_uri;\n');
+      process.exit(1);
+    }
+
+    if (passes.length && !/^\s*resolver\s+/m.test(conf)) {
+      console.error('\n🔴 nginx.conf uses a VARIABLE upstream but declares no `resolver`.');
+      console.error('   nginx will fail every proxied request at runtime. The config still parses,');
+      console.error('   so nothing else in this pipeline would ever tell you.\n');
+      process.exit(1);
+    }
+
+    if (passes.length) {
+      // A variable proxy_pass does NO automatic URI rewriting. Forgetting
+      // $request_uri silently strips the path — every /api/* request arrives at
+      // the API as "/", and every route 404s with a valid config and a green build.
+      const missing = passes.filter((u) => !/\$request_uri/.test(u));
+      if (missing.length) {
+        console.error('\n🔴 nginx.conf: a variable proxy_pass without $request_uri.');
+        missing.forEach((u) => console.error(`   proxy_pass ${u};`));
+        console.error('\n   With a variable, nginx does NOT pass the URI on for you. Every request');
+        console.error('   would reach the API as "/" and 404 — with a valid config and a green build.\n');
+        process.exit(1);
+      }
+      console.log(`  ✓ nginx upstream is resolved at request time (${passes.length} proxy_pass, resolver present).`);
+    }
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// GUARD — `[hidden]` MUST ACTUALLY HIDE.
+//
+// 🔴 THIS HAS NOW HAPPENED THREE TIMES IN THIS PROJECT.
+//
+//   1. `.panel { display: block }`  → every calculator invisible.
+//   2. `.panel[hidden]` fixed it... and then:
+//   3. `.sheet { display: grid }`   → the Record dialog COULD NOT BE CLOSED. The
+//      user was trapped in it and could not navigate. `.fab` and `.appnav` too.
+//
+// The cause is always the same, and it is a rule of CSS, not a typo: `[hidden]`
+// is styled by the BROWSER's stylesheet, which has the LOWEST priority there is.
+// ANY author rule that sets `display` on the same element beats it, silently.
+//
+// One line prevents all of it: `[hidden] { display: none !important; }`
+//
+// If it is ever deleted, every hidden thing in this app becomes visible, no test
+// that checks `el.hidden` will notice, and the first symptom will be a user who
+// cannot dismiss a dialog. So the BUILD checks for it.
+// ═════════════════════════════════════════════════════════════════════════════
+{
+  const cssPath = path.join(__dirname, 'web/assets/tokens.css');
+  if (fs.existsSync(cssPath)) {
+    const css = fs.readFileSync(cssPath, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '');            // strip comments — this guard has cried wolf before
+    if (!/\[hidden\]\s*\{[^}]*display:\s*none\s*!important/.test(css)) {
+      console.error('\n🔴 tokens.css has no `[hidden] { display: none !important; }` rule.\n');
+      console.error('   Without it, ANY class that sets `display` defeats the `hidden` attribute —');
+      console.error('   silently. The Record dialog becomes impossible to close, and the user is');
+      console.error('   trapped in it. This has happened three times. THE BUILD STOPS HERE.\n');
+      process.exit(1);
+    }
+    console.log('  ✓ [hidden] actually hides.');
+  }
+}
+
 const strip = (src) => src
   .replace(/^const \{[^}]*\} = require\([^)]*\);\s*$/gm, '')
   .replace(/^module\.exports\s*=\s*\{[\s\S]*?\};\s*$/gm, '');
@@ -91,6 +294,54 @@ const strip = (src) => src
   if (opens !== closes) bad.push(`  • nginx.conf has ${opens} '{' and ${closes} '}'. It is TRUNCATED or malformed — nginx will refuse to start and the container will crash-loop.`);
   if (lastLine !== '}')  bad.push(`  • nginx.conf does not end with '}'. It ends with: ${JSON.stringify(lastLine.slice(0, 60))}`);
 
+  // 🔴 THE COMPOSE FILE AND THE DOCKERFILES. Five files have now shipped
+  // truncated: engine.js, engine.test.js, build.js, nginx.conf — and
+  // docker-compose.yml, which was cut off mid-healthcheck at `require('/opt/s`.
+  //
+  // nginx validates its own config now. Node validates the JavaScript. NOTHING
+  // was validating the YAML, so a truncated compose file reached the founder and
+  // failed with a message that told him nothing about why.
+  //
+  // EVERY ARTEFACT MUST BE VALIDATED BY THE THING THAT WILL CONSUME IT — and
+  // where we cannot run that thing here, we check the shape.
+  // The compose file is HERE, in platform/, beside the Dockerfiles it builds.
+  // 🔴 But it is NOT in the Docker build context, because .dockerignore keeps it
+  //    out of the image — correctly. So this check belongs to the repo, not the
+  //    container. See the IN_REPO note at the top of this file.
+  for (const f of (IN_REPO ? ['docker-compose.yml'] : [])) {
+    const full = path.join(__dirname, f);
+    if (!fs.existsSync(full)) { bad.push(`  • ${f} is MISSING. It should be here, beside the Dockerfiles.`); continue; }
+    const y = fs.readFileSync(full, 'utf8');
+    if (y.includes('\u0000')) bad.push(`  • ${f} contains NUL bytes. It is corrupt.`);
+
+    // 🔴 MY FIRST VERSION OF THIS CHECK FLAGGED `selah-db:` — a perfectly valid
+    // last line — as "truncated mid-token". A guard that cries wolf is a guard
+    // that gets switched off, and then it is worse than no guard at all.
+    //
+    // So: check the things that are ACTUALLY true of a working compose file, and
+    // nothing clever.
+    if (!/^services:/m.test(y)) bad.push(`  • ${f} has no top-level services: block. It is truncated or it is not a compose file.`);
+    for (const svc of ['  web:', '  api:', '  db:']) {
+      if (!y.includes(svc)) bad.push(`  • ${f} is missing the "${svc.trim().replace(':','')}" service — the file is truncated, or someone removed it.`);
+    }
+    // The healthcheck is where it was cut last time: `require('/opt/s`. An odd
+    // number of quotes means something is severed mid-string.
+    //
+    // 🔴 STRIP THE COMMENTS FIRST. My first attempt counted the apostrophes in my
+    // own prose — "Ugandans' payslips", "the director's conviction" — and cried
+    // wolf on a perfectly good file. That is the SECOND false alarm this guard has
+    // produced in ten minutes, and a guard that cries wolf gets switched off.
+    //
+    // The rule for a guard is the same as the rule for a tax rule: if it is not
+    // right, it is worse than absent.
+    const code = y.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
+    const quotes = (code.match(/'/g) || []).length;
+    if (quotes % 2 !== 0) bad.push(`  • ${f} has an ODD number of single quotes outside its comments (${quotes}). Something is cut off mid-string.`);
+    if (!/^\s*$/.test(y.split('\n').pop() || '') && !y.endsWith('\n')) {
+      bad.push(`  • ${f} does not end with a newline. It may be truncated.`);
+    }
+  }
+
   for (const f of fs.readdirSync(path.join(__dirname, 'web'))) {
     if (!f.endsWith('.html')) continue;
     const full = path.join(__dirname, 'web', f);
@@ -111,6 +362,89 @@ const strip = (src) => src
     console.error('\n🔴 SELAH WILL NOT BUILD. A file is truncated.\n');
     console.error(bad.join('\n'));
     console.error('\nA file nobody parses is a file nobody checked. Rewrite it in full.\n');
+    process.exit(1);
+  }
+})();
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 🔴 THE .dockerignore GUARD — a file that exists, that Docker cannot see.
+//
+// .dockerignore excluded package.json and package-lock.json. It had been written
+// for a static web image, which does not need them. Then the API arrived, and its
+// Dockerfile starts:
+//
+//     COPY package.json package-lock.json ./
+//     RUN npm ci
+//
+// The build died with:
+//
+//     failed to compute cache key: "/package-lock.json": not found
+//
+// The file was right there, on disk, beside the Dockerfile. Docker simply could
+// not see it — and the error message says "not found", which sends you looking
+// for a missing file instead of a hidden one.
+//
+// So: every COPY source in every Dockerfile is cross-checked against
+// .dockerignore. An ignore rule that hides a file the build needs will not build.
+//
+// This is the same rule as everywhere else in this repo: EVERY ARTEFACT MUST BE
+// VALIDATED BY THE THING THAT WILL CONSUME IT. Docker consumes .dockerignore. We
+// cannot run Docker here — so we check the one thing that actually goes wrong.
+// ═════════════════════════════════════════════════════════════════════════════
+(function dockerignoreGuard() {
+  if (!IN_REPO) return;   // no .dockerignore inside the image, and none is needed
+  const bad = [];
+  const ignoreFile = path.join(__dirname, '.dockerignore');
+
+  const patterns = fs.readFileSync(ignoreFile, 'utf8')
+    .split('\n').map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'));
+
+  const hidden = (src) => patterns.some((pat) => {
+    if (pat === src) return true;                                  // exact
+    if (pat.endsWith('/') && src.startsWith(pat)) return true;     // directory
+    if (pat.startsWith('*.') && src.endsWith(pat.slice(1))) return true;  // *.md
+    return false;
+  });
+
+  for (const df of ['Dockerfile', 'Dockerfile.api']) {
+    const full = path.join(__dirname, df);
+    if (!fs.existsSync(full)) continue;
+    const text = fs.readFileSync(full, 'utf8');
+
+    for (const line of text.split('\n')) {
+      const m = /^\s*COPY\s+(?!--from)(.+)$/.exec(line);
+      if (!m) continue;
+      // everything but the final destination
+      const parts = m[1].trim().split(/\s+/);
+      const sources = parts.slice(0, -1).filter((x) => !x.startsWith('--'));
+      for (const src of sources) {
+        if (hidden(src)) {
+          bad.push(`  • ${df} does "COPY ${src}" — but .dockerignore HIDES it. Docker will report "${src}: not found" even though the file is right there.`);
+        }
+      }
+    }
+  }
+
+  // And while we are here: `npm ci` REFUSES to run if package.json and the
+  // lockfile disagree. Inside a Docker build that failure is another message that
+  // points at the wrong thing. Catch it on this side.
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+    const lock = JSON.parse(fs.readFileSync(path.join(__dirname, 'package-lock.json'), 'utf8'));
+    const want = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+    const have = { ...(lock.packages[''].dependencies || {}), ...(lock.packages[''].devDependencies || {}) };
+    for (const d of Object.keys(want)) {
+      if (!(d in have)) bad.push(`  • package.json needs "${d}" but package-lock.json does not have it. \`npm ci\` will REFUSE. Run: npm install`);
+    }
+  } catch (e) {
+    bad.push(`  • Could not read package.json / package-lock.json: ${e.message}`);
+  }
+
+  if (bad.length) {
+    console.error('\n🔴 SELAH WILL NOT BUILD. .dockerignore hides a file the build needs.\n');
+    console.error(bad.join('\n'));
+    console.error('\nDocker will say "not found". The file exists. .dockerignore is why.\n');
     process.exit(1);
   }
 })();
@@ -180,6 +514,7 @@ const tier1  = strip(fs.readFileSync(path.join(__dirname, 'engine/tier1.js'), 'u
 const tier2  = strip(fs.readFileSync(path.join(__dirname, 'engine/tier2.js'), 'utf8'));
 const person = strip(fs.readFileSync(path.join(__dirname, 'engine/personal.js'), 'utf8'));
 const clock  = strip(fs.readFileSync(path.join(__dirname, 'engine/clock.js'), 'utf8'));
+const cal    = strip(fs.readFileSync(path.join(__dirname, 'engine/calendar.js'), 'utf8'));
 const apply  = strip(fs.readFileSync(path.join(__dirname, 'engine/applicability.js'), 'utf8'))
                  .replace(/^function fmt\(n\) \{[\s\S]*?^\}$/m, ''); // fmt already defined in engine.js
 
@@ -195,6 +530,7 @@ ${tier1}
 ${tier2}
 ${person}
 ${clock}
+${cal}
 ${apply}
 global.Selah = {
   taxProfile, QUESTIONS, taxYear, fmtDate, daysUntil,
@@ -209,6 +545,7 @@ global.Selah = {
   loanSchedule, savings, retirement, debtPayoff, emergencyFund, netWorth,
   budget, treasuryYield, mortgageAffordability, businessValuation,
   watchlist, exposure, commence, WATCHLIST,
+  upcoming, obligationsFor, costOfMissing, directorTrap,
   fmt, RULES, CONFIDENCE, BLACKLIST
 };
 })(window);
