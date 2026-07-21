@@ -575,7 +575,9 @@
             '<td>' + (pct != null
               ? '<span class="bar' + (bad ? ' over' : '') + '"><i style="width:' + pct + '%"></i></span> <span class="src">' + pct + '%</span>'
               : '—') + '</td>' +
-            '<td class="note" title="' + esc(note) + '">' + esc(note) + '</td>' +
+            '<td class="note" title="' + esc(note) + '">' + esc(note) +
+              (isSaved ? ' <button class="link" data-action="bgDel" data-id="' + esc(g.id) + '" aria-label="Remove this budget">Remove</button>' : '') +
+            '</td>' +
           '</tr>';
         }).join('') +
         '</tbody></table></div>';
@@ -661,6 +663,17 @@
     if (!handle(r)) return;
     if (!r.ok) { $('bg-msg').textContent = r.headline || 'That did not work.'; return; }
     $('cat-new').value = ''; $('cat-lumpy').checked = false;
+    await refresh();
+    renderBudget(lastBudget);
+  };
+
+  /** Remove ONE budget line. The category stays and every transaction stays — only
+   *  the target figure you set is cleared, so the row reverts to un-budgeted. */
+  A.bgDel = async (el) => {
+    const r = await API.delBudget(current.id, el.dataset.id);
+    if (!handle(r)) return;
+    if (!r.ok) { $('bg-msg').textContent = r.headline || 'That did not work.'; return; }
+    $('bg-msg').innerHTML = '<span class="saved">✓ Removed.</span> That budget is cleared. The category and its transactions are untouched.';
     await refresh();
     renderBudget(lastBudget);
   };

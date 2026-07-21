@@ -729,6 +729,7 @@ function booksFetch(o) {
     if (/\/categories$/.test(url) && m === 'POST')            { opts.added = JSON.parse(init.body); return json(200, { ok: true, id: 'c9', key: 'school_run' }); }
     if (/\/confirm$/.test(url)) { opts.confirmed = JSON.parse(init.body); return json(opts.confirmStatus || 200, opts.confirmResponse || { ok: true }); }
     if (/did-not-arrive$/.test(url)) { opts.missed = true; return json(200, { ok: true, kept: true }); }
+    if (/\/budgets\/[^/]+$/.test(url) && m === 'DELETE') { opts.budgetDeleted = url; return json(200, { ok: true }); }
     if (/\/values$/.test(url) && m === 'GET') return json(200, { ok: true, items: opts.trackedItems || [] });
     if (/\/values$/.test(url) && m === 'POST') { opts.recorded = JSON.parse(init.body); return json(200, { ok: true, id: 'v1', itemKey: opts.recorded.itemKey }); }
     if (/\/shopping$/.test(url) && m === 'GET')  return json(200, { ok: true, lists: opts.shoppingLists || [], forecast: opts.forecast });
@@ -1183,7 +1184,8 @@ section('📊 TABLES — money is tabular, and the entries must be VISIBLE');
     rows: [{ category: 'rent', budgeted: 800_000, spent: 850_000, variance: -50_000, over: true, overBy: 50_000, percentUsed: 106 }],
     budgetsExcluded: [], howBudgetsWereCounted: 'Nothing was divided, averaged or spread.', unplannedSpending: 0,
   };
-  const { w, D } = boot(booksFetch({ budgets, budget }));
+  const o = { budgets, budget };
+  const { w, D } = boot(booksFetch(o));
   await settle();
   await w.SelahActions.goBooks(); await settle();
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
@@ -1198,6 +1200,12 @@ section('📊 TABLES — money is tabular, and the entries must be VISIBLE');
   // 🔴 We do NOT overwrite a budget a human already chose with a suggestion.
   ok('🔴 with a budget already saved, no row is marked "suggested"',
      !/suggested/i.test(b));
+
+  // 🔑 a saved row can be REMOVED outright, not only edited
+  const rm = D.querySelector('[data-action="bgDel"]');
+  ok('a saved budget row offers Remove', !!rm);
+  await w.SelahActions.bgDel(rm); await settle();
+  ok('🔑 Remove DELETEs that budget line', /\/budgets\/g1$/.test(o.budgetDeleted || ''));
 }
 
 // ── ACCOUNTS AS A TABLE ──────────────────────────────────────────────────
