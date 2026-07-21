@@ -176,6 +176,7 @@ services:
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
       SEED_ADMIN_KIND: ${SEED_ADMIN_KIND:-individual}
+      SEED_ADMIN_RESET: ${SEED_ADMIN_RESET:-}
 
     read_only: true
     tmpfs:

@@ -32,7 +32,15 @@ const pw = require('./password');
 async function seedAdmin() {
   const crypto = require('crypto');
   const email = String(process.env.SEED_ADMIN_EMAIL || '').trim().toLowerCase();
-  let password = process.env.SEED_ADMIN_PASSWORD || '';
+  // 🔴 STRIP TRAILING CR / WHITESPACE FROM THE ENV PASSWORD.
+  //    A .env edited on Windows ends lines with CRLF, and docker-compose can
+  //    carry the '\r' INTO the value — so SEED_ADMIN_PASSWORD becomes
+  //    'SelahAdmin2026!\r'. The seed then hashes that, you type the password
+  //    without the invisible carriage return, and it never matches. This is a
+  //    file-encoding artifact, never an intended password character, so we
+  //    remove it. (A human's TYPED password is never touched — only this one,
+  //    which comes from a config file.)
+  let password = (process.env.SEED_ADMIN_PASSWORD || '').replace(/[\r\n]+$/, '').replace(/[ \t]+$/, '');
   const kind = process.env.SEED_ADMIN_KIND === 'entity' ? 'entity' : 'individual';
 
   // 🔴 OPT-IN ONLY. No env, no seed. A seed that runs by default is a backdoor.
@@ -67,8 +75,20 @@ async function seedAdmin() {
   if (rows.length) {
     // 🔴 DO NOT RESET THE PASSWORD ON EVERY BOOT. That would be a surprise, and a
     //    dangerous one. We only ensure the account is verified and flagged admin.
+    //
+    // 🔑 THE ONE EXCEPTION: SEED_ADMIN_RESET=true. An explicit, operator-chosen
+    //    escape hatch for "I created this admin earlier and no longer know the
+    //    password". It force-sets the password to SEED_ADMIN_PASSWORD. Remove the
+    //    flag afterwards — you do not want every boot rewriting the password.
+    if (String(process.env.SEED_ADMIN_RESET || '').toLowerCase() === 'true') {
+      await db.query("UPDATE taxpayers SET password_hash = $1, email_verified = true, role = 'admin' WHERE id = $2",
+        [pw.hash(password), rows[0].id]);
+      console.log(`  🔑 seed: RESET the password for existing admin ${email}. Now remove SEED_ADMIN_RESET.`);
+      return { seeded: false, reset: true };
+    }
     await db.query("UPDATE taxpayers SET email_verified = true, role = 'admin' WHERE id = $1", [rows[0].id]);
-    console.log(`  ✓ seed: admin ${email} already exists — ensured verified + admin (password left unchanged).`);
+    console.log(`  ✓ seed: admin ${email} already exists — verified + admin (password left unchanged).`);
+    console.log(`     If you cannot sign in, set SEED_ADMIN_RESET=true and restart to reset the password.`);
     return { seeded: false, existed: true };
   }
 
