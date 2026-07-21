@@ -567,7 +567,27 @@ router.get('/:bookId/shopping', async (req, res, next) => {
       }));
       out.push({ id: l.id, name: str(l.name_enc), ...SHOP.planList(shaped, priceBook) });
     }
-    res.json({ ok: true, lists: out });
+
+    // 🔑 FORECAST — recurring buys that are due, learned from the purchase history.
+    //    Every money-out entry that named an item IS a purchase; grouped by item,
+    //    a rhythm emerges, and SHOP.forecastDue decides what is due now.
+    const { rows: buys } = await db.query(
+      "SELECT label_enc, occurred_on, quantity FROM entries WHERE book_id = $1 AND direction = 'out' AND label_enc IS NOT NULL AND occurred_on IS NOT NULL",
+      [req.params.bookId]);
+    const hist = {};
+    for (const e of buys) {
+      const label = str(e.label_enc); if (!label) continue;
+      const key = SHOP.keyOf(label);
+      (hist[key] = hist[key] || { key, label, purchases: [] })
+        .purchases.push({ asOf: iso(e.occurred_on), quantity: e.quantity != null ? Number(e.quantity) : 1 });
+    }
+    for (const k of Object.keys(hist)) {
+      const pb = priceBook[k];
+      if (pb) { hist[k].unitPrice = pb.unitPrice; hist[k].unit = pb.unit; }
+    }
+    const forecast = SHOP.forecastDue(Object.values(hist), { asOf: today() });
+
+    res.json({ ok: true, lists: out, forecast });
   } catch (e) { next(e); }
 });
 

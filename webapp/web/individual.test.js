@@ -731,7 +731,7 @@ function booksFetch(o) {
     if (/did-not-arrive$/.test(url)) { opts.missed = true; return json(200, { ok: true, kept: true }); }
     if (/\/values$/.test(url) && m === 'GET') return json(200, { ok: true, items: opts.trackedItems || [] });
     if (/\/values$/.test(url) && m === 'POST') { opts.recorded = JSON.parse(init.body); return json(200, { ok: true, id: 'v1', itemKey: opts.recorded.itemKey }); }
-    if (/\/shopping$/.test(url) && m === 'GET')  return json(200, { ok: true, lists: opts.shoppingLists || [] });
+    if (/\/shopping$/.test(url) && m === 'GET')  return json(200, { ok: true, lists: opts.shoppingLists || [], forecast: opts.forecast });
     if (/\/shopping$/.test(url) && m === 'POST') { opts.listAdded = JSON.parse(init.body); return json(200, { ok: true, id: 'sl1' }); }
     if (/\/shopping\/[^/]+\/items\/[^/]+\/done$/.test(url) && m === 'POST') { opts.shopDone = JSON.parse(init.body); return json(opts.shopDoneStatus || 200, opts.shopDoneResponse || { ok: true, entryId: 'e9', total: 6000 }); }
     if (/\/shopping\/[^/]+\/items\/[^/]+$/.test(url) && m === 'DELETE') { opts.shopItemDeleted = url; return json(200, { ok: true }); }
@@ -2085,6 +2085,48 @@ section('🧾 LEDGER — most recent first, and today\'s newest above today\'s o
   ok('🔑 the latest date is at the top', labels[0] === 'Newer today' || labels[0] === 'Older today');
   ok('🔑 within a day, the most recently recorded is above the older one', labels.indexOf('Newer today') < labels.indexOf('Older today'));
   ok('...and yesterday sits below today', labels.indexOf('Yesterday') > labels.indexOf('Newer today'));
+}
+
+// ── THE STANDING FORECAST — recurring buys that are due ────────────────────
+section('🔮 SHOPPING FORECAST — what your history says you are likely due to buy');
+{
+  const S = require('../engine/shopping');
+  // sugar bought 5×, ~every 12 days, last 13 days ago → overdue and priced
+  const buysEvery = (n, gap, endDaysAgo, qty) => {
+    const end = Date.parse('2026-07-15T00:00:00Z') - endDaysAgo * 86400000;
+    const out = [];
+    for (let i = n - 1; i >= 0; i--) out.push({ asOf: new Date(end - i * gap * 86400000).toISOString().slice(0, 10), quantity: qty });
+    return out;
+  };
+  const forecast = S.forecastDue(
+    [{ key: 'sugar', label: 'Sugar', unit: 'Kg', unitPrice: 1000, purchases: buysEvery(5, 12, 13, 2) }],
+    { asOf: '2026-07-15' });
+
+  const { w, D } = boot(booksFetch({ shoppingLists: [], forecast }));
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  await w.SelahActions.bkTab({ dataset: { tab: 'shopping' } }); await settle();
+
+  const pane = D.getElementById('shopping-lists').textContent;
+  ok('🔑 the forecast card is always on the Shopping tab', /Likely due/.test(pane));
+  ok('🔑 it names the recurring item that is due', /Sugar/.test(pane));
+  ok('🔑 it shows the estimated cost from the price book (2 × 1,000)', /2,000/.test(pane));
+  ok('🔑 it shows its working — how often, how long since', /Bought 5 times/.test(pane));
+  ok('🔴 it says out loud that it is a guess, not a list you must buy', /a guess, not a list you must buy/.test(pane));
+}
+
+// an empty history forecasts nothing, and says why — no crash, no invented list
+{
+  const S = require('../engine/shopping');
+  const forecast = S.forecastDue([], { asOf: '2026-07-15' });
+  const { w, D } = boot(booksFetch({ shoppingLists: [], forecast }));
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  await w.SelahActions.bkTab({ dataset: { tab: 'shopping' } }); await settle();
+  ok('🔴 with no history the forecast is honest and empty, not invented',
+     /Not enough history yet to forecast/.test(D.getElementById('shopping-lists').textContent));
 }
 
 

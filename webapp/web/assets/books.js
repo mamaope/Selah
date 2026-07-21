@@ -1273,12 +1273,41 @@
     if (open) { box.innerHTML = renderDetail(open); return; }
     shopOpenList = null;
 
-    if (!lists.length) { box.innerHTML = '<p class="muted">No lists yet. Add one above — say, “Grocery”.</p>'; return; }
-    box.innerHTML =
-      '<div class="tablewrap"><table class="t">' +
-        '<thead><tr><th>List</th><th>Progress</th><th class="num">Still to buy</th><th></th></tr></thead>' +
-        '<tbody>' + lists.map(renderIndexRow).join('') + '</tbody>' +
-      '</table></div>';
+    // 🔑 the always-on forecast sits at the top of the index, rebuilt every open
+    const forecast = renderForecast(r.forecast);
+    const listsHtml = lists.length
+      ? '<div class="tablewrap"><table class="t">' +
+          '<thead><tr><th>List</th><th>Progress</th><th class="num">Still to buy</th><th></th></tr></thead>' +
+          '<tbody>' + lists.map(renderIndexRow).join('') + '</tbody>' +
+        '</table></div>'
+      : '<p class="muted">No lists yet. Add one above — say, “Grocery”.</p>';
+    box.innerHTML = forecast + listsHtml;
+  }
+
+  // the standing forecast card — recurring buys that are due, from your history
+  function renderForecast(f) {
+    const fc = f || { items: [], note: '' };
+    const items = fc.items || [];
+    const rows = items.map((it) =>
+      '<tr' + (it.overdue ? ' class="is-out"' : '') + '>' +
+        '<td>' + esc(it.label) + '</td>' +
+        '<td class="num">' + esc(it.quantity) + (it.unit ? ' ' + esc(it.unit) : '') + '</td>' +
+        '<td class="num">' + (it.estimate == null ? '<span class="muted">—</span>' : '~' + fmt(it.estimate)) + '</td>' +
+        '<td class="muted" style="font-size:.85em">' + esc(it.says) + '</td>' +
+      '</tr>').join('');
+    const body = items.length
+      ? '<div class="tablewrap"><table class="t">' +
+          '<thead><tr><th>Likely due</th><th class="num">Usual qty</th><th class="num">Est. cost</th><th>Why</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table></div>' +
+        '<p class="muted" style="margin-top:.4rem">Estimated total of what it could price: <strong>' + fmt(fc.estimatedTotal) + '</strong>' +
+          (fc.unpricedCount ? ' · ' + esc(fc.unpricedCount) + ' with no known price yet' : '') + '</p>'
+      : '';
+    return '<div class="card">' +
+      '<div class="cardhead"><h3>🔮 Likely due — from your history</h3></div>' +
+      '<p class="hint">' + esc(fc.note || '') + '</p>' +
+      body +
+    '</div>';
   }
 
   // one row in the index of lists

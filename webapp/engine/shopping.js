@@ -96,4 +96,91 @@ function planList(items, priceBook) {
   };
 }
 
-module.exports = { planList, keyOf };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FORECAST — what you are likely due to buy, from your own history.
+//
+// 🔑 A PATTERN, NOT A GUESS ABOUT ONE PURCHASE. We look only at items you have
+//    bought REPEATEDLY (3+ times). For those, we learn the rhythm — the typical
+//    gap between purchases — and, if you are at or past ~80% of that gap since you
+//    last bought it, we say it is due. Quantity is your usual quantity; cost is
+//    priced from the book, and left blank if the book cannot price it.
+//
+// 🔴 IT IS A FORECAST, AND IT SAYS SO. An item bought once or twice is NOT a
+//    pattern and is never forecast. We never invent a cadence from a single gap
+//    of nonsense, and we never invent a price. This is what a careful person would
+//    infer from your receipts — nothing more.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DAY = 86400000;
+const median = (xs) => {
+  const a = xs.slice().sort((x, y) => x - y);
+  const m = Math.floor(a.length / 2);
+  return a.length % 2 ? a[m] : Math.round((a[m - 1] + a[m]) / 2);
+};
+
+/**
+ * @param history [{ key, label, unit, unitPrice, purchases: [{ asOf, quantity }] }]
+ * @param opts    { asOf: 'YYYY-MM-DD', minHistory=3, dueAt=0.8 }
+ * @returns { asOf, items:[...], estimatedTotal, unpricedCount, note }
+ */
+function forecastDue(history, opts = {}) {
+  const asOf = opts.asOf || new Date().toISOString().slice(0, 10);
+  const minHistory = opts.minHistory || 3;      // fewer than this is not a pattern
+  const dueAt = opts.dueAt != null ? opts.dueAt : 0.8;   // due at 80% of the cadence
+  const now = Date.parse(asOf + 'T00:00:00Z');
+
+  const items = [];
+  for (const h of history || []) {
+    const buys = (h.purchases || [])
+      .filter((b) => b && b.asOf)
+      .sort((a, b) => String(a.asOf).localeCompare(String(b.asOf)));
+    if (buys.length < minHistory) continue;      // 🔴 not enough to call it a rhythm
+
+    const gaps = [];
+    for (let i = 1; i < buys.length; i++) {
+      const g = Math.round((Date.parse(buys[i].asOf) - Date.parse(buys[i - 1].asOf)) / DAY);
+      if (g > 0) gaps.push(g);
+    }
+    if (!gaps.length) continue;                  // all on one day — no cadence
+
+    const cadence = median(gaps);
+    const last = buys[buys.length - 1].asOf;
+    const daysSince = Math.round((now - Date.parse(last + 'T00:00:00Z')) / DAY);
+    if (daysSince < cadence * dueAt) continue;   // not due yet — leave it off
+
+    const dueIn = cadence - daysSince;           // ≤ 0 means overdue
+    const typicalQty = median(buys.map((b) => (b.quantity != null ? Number(b.quantity) : 1)));
+    const unitPrice = h.unitPrice != null ? Number(h.unitPrice) : null;
+    const estimate = unitPrice != null ? UGX(typicalQty * unitPrice) : null;
+
+    const every = cadence === 1 ? 'about every day' : `about every ${cadence} days`;
+    const when = dueIn < 0 ? `${-dueIn} day${dueIn === -1 ? '' : 's'} overdue`
+               : dueIn === 0 ? 'due today'
+               : `due in ${dueIn} day${dueIn === 1 ? '' : 's'}`;
+    items.push({
+      key: h.key, label: h.label, unit: h.unit || null,
+      quantity: typicalQty, timesBought: buys.length, cadenceDays: cadence,
+      lastBought: last, daysSince, dueIn, overdue: dueIn < 0,
+      estimate,
+      says: `Bought ${buys.length} times, ${every}; last ${daysSince} day${daysSince === 1 ? '' : 's'} ago — ${when}.`,
+    });
+  }
+
+  // most overdue first — the things you have gone longest without
+  items.sort((a, b) => a.dueIn - b.dueIn);
+
+  const priced = items.filter((i) => i.estimate != null);
+  const unpriced = items.filter((i) => i.estimate == null);
+  return {
+    asOf,
+    items,
+    estimatedTotal: priced.reduce((s, i) => s + i.estimate, 0),
+    unpricedCount: unpriced.length,
+    note: items.length
+      ? 'A forecast from your own buying history — a guess, not a list you must buy. Only things you buy repeatedly appear here.'
+      : 'Not enough history yet to forecast. Keep recording what you buy, and items you purchase regularly will start to show up here.',
+  };
+}
+
+module.exports = { planList, keyOf, forecastDue };

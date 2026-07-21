@@ -75,6 +75,75 @@ t('an empty list is an honest empty summary, not a crash', () => {
   assert.strictEqual(r.counts.total, 0);
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FORECAST — recurring items that are due now
+// ═══════════════════════════════════════════════════════════════════════════
+
+// helper: n purchases every `gap` days, ending `endDaysAgo` before 2026-07-15
+const buysEvery = (n, gap, endDaysAgo, qty) => {
+  const end = Date.parse('2026-07-15T00:00:00Z') - endDaysAgo * 86400000;
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) out.push({ asOf: new Date(end - i * gap * 86400000).toISOString().slice(0, 10), quantity: qty });
+  return out;
+};
+const FASOF = { asOf: '2026-07-15' };
+
+t('🔑 a regular buy that is due is forecast, with its cadence and quantity', () => {
+  // bought 5 times, every 12 days, last 13 days ago → overdue
+  const h = [{ key: 'sugar', label: 'Sugar', unit: 'Kg', unitPrice: 1000, purchases: buysEvery(5, 12, 13, 2) }];
+  const f = S.forecastDue(h, FASOF);
+  assert.strictEqual(f.items.length, 1);
+  assert.strictEqual(f.items[0].label, 'Sugar');
+  assert.strictEqual(f.items[0].cadenceDays, 12);
+  assert.strictEqual(f.items[0].quantity, 2);
+  assert.strictEqual(f.items[0].estimate, 2000);        // 2 Kg × 1000
+  assert.ok(/Bought 5 times/.test(f.items[0].says));
+});
+
+t('🔴 an item bought only twice is NOT a pattern — never forecast', () => {
+  const h = [{ key: 'gas', label: 'Gas', unitPrice: 90000, purchases: buysEvery(2, 30, 40, 1) }];
+  assert.strictEqual(S.forecastDue(h, FASOF).items.length, 0);
+});
+
+t('🔑 a regular buy that is NOT due yet is left off', () => {
+  // every 30 days, last bought 3 days ago → nowhere near due
+  const h = [{ key: 'rice', label: 'Rice', unitPrice: 4000, purchases: buysEvery(4, 30, 3, 5) }];
+  assert.strictEqual(S.forecastDue(h, FASOF).items.length, 0);
+});
+
+t('🔴 a due item with NO known price is still forecast, but its cost is blank', () => {
+  const h = [{ key: 'soap', label: 'Soap', purchases: buysEvery(4, 10, 12, 1) }];   // no unitPrice
+  const f = S.forecastDue(h, FASOF);
+  assert.strictEqual(f.items.length, 1);
+  assert.strictEqual(f.items[0].estimate, null);
+  assert.strictEqual(f.unpricedCount, 1);
+});
+
+t('the estimated total sums only the items it could price', () => {
+  const h = [
+    { key: 'sugar', label: 'Sugar', unitPrice: 1000, purchases: buysEvery(4, 10, 12, 2) },  // due, 2000
+    { key: 'soap',  label: 'Soap',  purchases: buysEvery(4, 10, 12, 1) },                    // due, no price
+  ];
+  const f = S.forecastDue(h, FASOF);
+  assert.strictEqual(f.items.length, 2);
+  assert.strictEqual(f.estimatedTotal, 2000);
+});
+
+t('most overdue is listed first', () => {
+  const h = [
+    { key: 'a', label: 'A', unitPrice: 100, purchases: buysEvery(4, 10, 11, 1) },   // 1 day over
+    { key: 'b', label: 'B', unitPrice: 100, purchases: buysEvery(4, 10, 25, 1) },   // 15 days over
+  ];
+  const f = S.forecastDue(h, FASOF);
+  assert.strictEqual(f.items[0].label, 'B');
+});
+
+t('no history at all is an honest empty forecast, not a crash', () => {
+  const f = S.forecastDue([], FASOF);
+  assert.strictEqual(f.items.length, 0);
+  assert.ok(/Not enough history/.test(f.note));
+});
+
 console.log(fail
   ? `\n\x1b[31m✗ ${fail} SHOPPING TEST${fail > 1 ? 'S' : ''} FAILED\x1b[0m  (${pass} passed)\n`
   : `\x1b[32m✓ ALL ${pass} SHOPPING TESTS PASSED\x1b[0m`);
