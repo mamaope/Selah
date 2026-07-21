@@ -203,6 +203,7 @@
     accts = p.accounts || [];
     allEntries = p.entries || [];
     allBudgets = p.budgets || [];
+    await loadPriceBook();
 
     // 🔑 CATEGORIES BELONG TO A DIRECTION. Salary is money in; rent is money out.
     //    Offering "Rent" as a place your salary came from is nonsense, and it is the
@@ -715,6 +716,96 @@
     }
   }
 
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PRICES & VALUES OVER TIME
+  //
+  // 🔑 Recording a value ADDS a dated point. The engine (server-side) turns the
+  //    history into: current value, change since last, growth per month, and — with
+  //    enough points — a projection that SAYS it is a guess. We just display it.
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function renderValues() {
+    const box = $('vt-list');
+    if (!box) return;
+    if (!$('vt-date').value) $('vt-date').value = today();
+
+    const r = await API.trackedValues(current.id);
+    if (!handle(r)) return;
+    if (!r.ok) { box.innerHTML = ''; return; }
+
+    if (!r.items.length) {
+      box.innerHTML = '<p class="src">Nothing tracked yet. Record a value above — then record it again when it changes, and the trend appears here.</p>';
+      return;
+    }
+
+    const arrow = (d) => d === 'up' ? '<span style="color:var(--red-600)">▲</span>'
+                       : d === 'down' ? '<span style="color:var(--emerald-700)">▼</span>'
+                       : '<span class="muted">■</span>';
+
+    box.innerHTML = r.items.map((it) => (
+      '<div class="card" style="background:var(--surface-1)">' +
+        '<div class="cardhead">' +
+          '<h3>' + esc(it.label || it.key) + ' ' + (it.direction && it.direction !== 'first' ? arrow(it.direction) : '') + '</h3>' +
+          '<strong class="num">' + fmt(it.current.amount) + '</strong>' +
+        '</div>' +
+
+        // the human one-liner the engine already wrote
+        '<p class="hint" style="margin-top:0">' + esc(it.says) + '</p>' +
+
+        // change since last + growth
+        (it.sinceLast
+          ? '<div class="row" style="gap:1rem;font-size:.85rem">' +
+              '<span>Since ' + esc(it.sinceLast.fromOn) + ': <strong class="num">' +
+                (it.sinceLast.abs >= 0 ? '+' : '') + fmt(it.sinceLast.abs) + '</strong>' +
+                (it.sinceLast.pct != null ? ' (' + (it.sinceLast.pct >= 0 ? '+' : '') + it.sinceLast.pct + '%)' : '') + '</span>' +
+              (it.monthlyGrowthPct != null ? '<span class="muted">~' + it.monthlyGrowthPct + '%/month</span>' : '') +
+            '</div>'
+          : '') +
+
+        // 🔴 the projection — a GUESS, labelled as one
+        (it.projection && it.projection.nextMonth
+          ? '<div class="card ask" style="margin-top:.6rem;padding:.6rem .8rem">' +
+              'If the trend holds: <strong class="num">' + fmt(it.projection.nextMonth) + '</strong> next month, ' +
+              '<strong class="num">' + fmt(it.projection.inSixMonths) + '</strong> in six. ' +
+              '<span class="src">' + esc(it.projection.thisIsAGuess) + '</span>' +
+            '</div>'
+          : it.projection && it.projection.whyNot
+            ? '<p class="src">' + esc(it.projection.whyNot) + '</p>'
+            : '') +
+
+        // the history — every point, newest first, each removable
+        '<div class="tablewrap"><table class="t" style="margin-top:.4rem"><thead><tr>' +
+          '<th>As of</th><th class="num">Value</th><th></th>' +
+        '</tr></thead><tbody>' +
+        [...it.pointIds].reverse().map((pt) => (
+          '<tr><td>' + esc(pt.asOf) + '</td><td class="num">' + fmt(pt.amount) + '</td>' +
+          '<td><button class="link" data-action="vtDel" data-id="' + esc(pt.id) + '">remove</button></td></tr>'
+        )).join('') +
+        '</tbody></table></div>' +
+      '</div>'
+    )).join('');
+  }
+
+  A.vtRecord = async () => {
+    const item = $('vt-item').value.trim();
+    const amount = Number($('vt-amount').value || 0);
+    const asOf = $('vt-date').value || today();
+    if (!item || !(amount > 0)) { $('vt-msg').textContent = 'Give it a name and a value.'; return; }
+
+    const r = await API.recordValue(current.id, { itemKey: item, label: item, amount, asOf });
+    if (!handle(r)) return;
+    if (!r.ok) { $('vt-msg').textContent = (r.headline || 'That did not work.'); return; }
+    $('vt-msg').innerHTML = '<span class="saved">✓ Recorded.</span> Record it again when it changes.';
+    $('vt-amount').value = '';
+    await renderValues();
+  };
+
+  A.vtDel = async (el) => {
+    const r = await API.delValuePoint(current.id, el.dataset.id);
+    if (!handle(r)) return;
+    await renderValues();
+  };
+
   A.bkDelEntry = async (el) => {
     const r = await API.delEntry(current.id, el.dataset.id);
     if (!handle(r)) return;
@@ -837,14 +928,56 @@
     if (e.target && e.target.id === 'sheet') A.bkCloseSheet();
   });
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // THE PRICE BOOK — the known unit price for each item, so the sheet can auto-fill.
+  // ═══════════════════════════════════════════════════════════════════════════
+  let priceBook = {};
+  const keyOf = (label) => String(label || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+
+  async function loadPriceBook() {
+    priceBook = {};
+    const r = await API.trackedValues(current.id);
+    if (r && r.ok) for (const it of r.items) if (it.current) priceBook[it.key] = { unitPrice: it.current.amount, unit: it.unit || null };
+  }
+
+  // 🔑 Type an item Selah knows the price of, plus a quantity, and the total fills in
+  //    (with its unit). Your own typed total always wins — it is what you paid, and on
+  //    save it updates the price book.
+  function priceAssist() {
+    const hint = $('bk-price-hint');
+    const known = priceBook[keyOf($('bk-label').value)];
+    if (!known) { if (hint) hint.textContent = ''; return; }
+    if (!$('bk-unit').value && known.unit) $('bk-unit').value = known.unit;
+    const qty = Number($('bk-qty').value || 0);
+    if (qty > 0 && $('bk-amount').value === '') {
+      const total = Math.round(qty * known.unitPrice);
+      $('bk-amount').value = total;
+      if (hint) hint.innerHTML = qty + ' × ' + fmt(known.unitPrice) + (known.unit ? '/' + esc(known.unit) : '') + ' = <strong>' + fmt(total) + '</strong>';
+    } else if (hint) {
+      hint.innerHTML = 'Known price: ' + fmt(known.unitPrice) + (known.unit ? ' per ' + esc(known.unit) : '') +
+        '. <span class="src">Type a different total and it updates the default.</span>';
+    }
+  }
+
+  document.addEventListener('input', function (e) {
+    if (e.target && (e.target.id === 'bk-label' || e.target.id === 'bk-qty')) priceAssist();
+  });
+
   A.bkAddEntry = async () => {
-    const amount = Number($('bk-amount').value || 0);
-    if (!(amount > 0)) { $('bk-sheet-msg').textContent = 'How much was it?'; $('bk-amount').focus(); return; }
+    const rawAmount = $('bk-amount').value;
+    const qty = $('bk-qty').value;
+    const unit = $('bk-unit').value.trim();
+    // 🔑 give a TOTAL, or a QUANTITY of a known item — not neither.
+    if ((rawAmount === '' || !(Number(rawAmount) > 0)) && !(Number(qty) > 0)) {
+      $('bk-sheet-msg').textContent = 'How much, or how many?'; $('bk-amount').focus(); return;
+    }
 
     const body = {
       direction: dir,
       label: $('bk-label').value.trim(),
-      amount,
+      amount: rawAmount === '' ? undefined : Number(rawAmount),
+      quantity: qty === '' ? undefined : Number(qty),
+      unit: unit || undefined,
       category: $('bk-cat').value || null,
       occurredOn: $('bk-date').value || today(),
     };
@@ -870,10 +1003,13 @@
     // ledger, turns a 30-second job into a 3-minute one. So: confirm what was saved,
     // clear the fields that change, KEEP the ones that do not (the account, the
     // date, the direction), and put the cursor back on the amount.
-    const saved = ($('bk-label').value.trim() || 'Entry') + ' — ' + fmt(amount);
+    const saved = ($('bk-label').value.trim() || 'Entry') + ' — ' + fmt(Number(rawAmount) || 0);
     $('bk-sheet-msg').innerHTML = '<span class="saved">✓ Saved:</span> ' + esc(saved) + ' <span class="src">Add another, or press Done.</span>';
     $('bk-amount').value = '';
     $('bk-label').value = '';
+    $('bk-qty').value = '';
+    $('bk-unit').value = '';
+    $('bk-price-hint').textContent = '';
     $('bk-amount').focus();
 
     await refresh();      // the ledger behind the sheet updates as you go
@@ -897,6 +1033,7 @@
     if (want === 'ahead') A.bkForecast();
     if (want === 'budget') fillBudgetForm();
     if (want === 'plan' && !$('tpl-lines').children.length) A.tplAddLine();
+    if (want === 'plan') renderValues();
   };
 
   // ── MY DEFAULTS — the template. "Set it once." ─────────────────────────────

@@ -3,17 +3,58 @@
   "productName": "Selah",
   "version": "1.0.0",
   "description": "Selah — Uganda's tax and money tools, offline. Your data never leaves this machine.",
+  "author": "Selah Solutions Ltd",
   "main": "main.js",
   "scripts": {
     "prepare-assets": "node sync.js",
     "start": "npm run prepare-assets && electron .",
     "test": "node lib/store.test.js && node engine/engine.test.js && node engine/books.test.js && node engine/accounts.test.js && node engine/calendar.test.js && node engine/rollup.test.js && node engine/forecast.test.js && node engine/money.test.js",
-    "dist": "npm run prepare-assets && electron-builder"
+    "dist": "npm run prepare-assets && electron-builder",
+    "dist:win": "npm run prepare-assets && electron-builder --win",
+    "dist:mac": "npm run prepare-assets && electron-builder --mac",
+    "dist:linux": "npm run prepare-assets && electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
   },
   "build": {
     "appId": "ug.selah.desktop",
-    "files": ["main.js", "preload.js", "engine/**", "lib/**", "renderer/**", "!**/*.test.js"],
-    "directories": { "output": "dist" }
-  },
-  "devDependencies": { "electron": "^31.0.0" }
+    "productName": "Selah",
+    "copyright": "Copyright © Selah Solutions Ltd",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": [
+      "main.js",
+      "preload.js",
+      "engine/**",
+      "lib/**",
+      "renderer/**",
+      "!**/*.test.js"
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        { "target": "nsis",     "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Selah"
+    },
+    "portable": { "artifactName": "Selah-${version}-portable.exe" },
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.finance",
+      "target": [ { "target": "dmg", "arch": ["x64", "arm64"] } ]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Office",
+      "target": [ "AppImage", "deb" ]
+    }
+  }
 }

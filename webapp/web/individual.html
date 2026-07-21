@@ -390,6 +390,30 @@
         <p id="tpl-msg" class="hint"></p>
       </div>
 
+      <!-- ══ PRICES & VALUES — track how a number MOVES over time ═══════════════
+           🔑 The founder's ask: gas is 100,000 today; next month 105,000. Salary
+           was 1,000,000; then 1,200,000. Recording a new value ADDS a dated point,
+           never overwrites — the change is the data, and it shows growth. -->
+      <div class="card">
+        <div class="cardhead">
+          <h3>Prices &amp; values over time</h3>
+        </div>
+        <p class="muted">Track how a price or a value moves — a gas refill, your salary, the rent.
+          Each time it changes, record the new value <strong>as of that date</strong>. Selah keeps the
+          history and shows you the trend, the growth, and where it may be heading.</p>
+
+        <div class="row" style="gap:.5rem;flex-wrap:wrap;margin-top:.6rem">
+          <input type="text" id="vt-item" placeholder="What (Gas, Salary, Rent)" style="flex:1;min-width:9rem">
+          <input type="number" id="vt-amount" placeholder="Value now">
+          <input type="date" id="vt-date">
+          <button class="primary" data-action="vtRecord">Record</button>
+        </div>
+        <p class="hint">Recording the same item again — with today's price — is how the history builds. To fix a mistake, remove a point below.</p>
+        <p id="vt-msg" class="hint"></p>
+
+        <div id="vt-list" class="stack" style="margin-top:.8rem"></div>
+      </div>
+
       <div class="card">
         <button class="primary" data-action="bkStage">Draft this month from my defaults</button>
         <p class="hint">Puts this month&#39;s expected lines on your screen. They are counted in nothing until you confirm them.</p>
@@ -485,7 +509,20 @@
       <input type="number" id="bk-amount" inputmode="numeric" placeholder="0" autocomplete="off">
 
       <label for="bk-label">What was it?</label>
-      <input type="text" id="bk-label" placeholder="Boda, gas, shopping, salary" autocomplete="off">
+      <input type="text" id="bk-label" placeholder="Sugar, gas, boda, rent, salary" autocomplete="off">
+
+      <!-- 🔑 units: enter the quantity and the total fills from the known price -->
+      <div class="two">
+        <div>
+          <label for="bk-qty">Quantity</label>
+          <input type="number" id="bk-qty" inputmode="decimal" placeholder="1" autocomplete="off">
+        </div>
+        <div>
+          <label for="bk-unit">Unit</label>
+          <input type="text" id="bk-unit" placeholder="Kg, litre, refill" autocomplete="off">
+        </div>
+      </div>
+      <p id="bk-price-hint" class="hint" style="margin-top:.2rem"></p>
 
       <div class="two">
         <div>

@@ -51,6 +51,8 @@ RUN if [ "$RUN_TESTS" != "true" ]; then \
       && timeout 60 node engine/rollup.test.js \
       && timeout 60 node engine/money.test.js \
       && timeout 60 node engine/forecast.test.js \
+      && timeout 60 node engine/values.test.js \
+      && timeout 60 node engine/pricing.test.js \
       && echo "" && echo "The engine computes Ugandan tax law correctly."; \
     fi
 

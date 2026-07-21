@@ -47,11 +47,36 @@ price of nobody but you ever reading it.
 npm test             # the vault, plus the engine suite re-run against the synced copy
 ```
 
-## Package a distributable
+## Package the executables
 
+You get an **installer** and a **portable** build. macOS can only be built on a Mac,
+Windows on Windows, Linux on Linux — so pick the path that fits what you have.
+
+### On your own machine (builds for THAT OS)
 ```
-npm run dist         # electron-builder → dist/  (installer for this OS)
+npm install
+npm run dist            # builds for whatever OS you are on → desktop/dist/
+# or force a target:
+npm run dist:win        # Windows: Selah-Setup-1.0.0.exe  +  Selah-1.0.0-portable.exe
+npm run dist:mac        # macOS:   Selah-1.0.0.dmg          (must run on a Mac)
+npm run dist:linux      # Linux:   Selah-1.0.0.AppImage + .deb
 ```
+The finished executables land in **`desktop/dist/`**.
+
+### All three at once (no Mac required) — GitHub Actions
+`.github/workflows/desktop.yml` builds Windows, macOS **and** Linux on a tag:
+```
+git tag v1.0.0
+git push origin v1.0.0
+```
+The three OSes build in parallel and the executables attach to a GitHub Release.
+This is the only way to get the `.dmg` if you do not own a Mac.
+
+### The icon
+Replace `build/icon.png` with your logo (≥512×512 PNG). See `build/README.md`.
+
+> Note: this environment cannot produce the binary — a desktop executable must be
+> built on a real OS. The configuration above makes `npm run dist` do it in one step.
 
 ## The vault
 

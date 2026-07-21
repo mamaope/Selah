@@ -18,6 +18,8 @@ const session = require('../lib/session');
 const B = require('../../engine/books');
 const R = require('../../engine/rollup');
 const F = require('../../engine/forecast');
+const VAL = require('../../engine/values');
+const PRICE = require('../../engine/pricing');
 const booksRoute = require('./books');
 
 const router = express.Router();
@@ -27,6 +29,27 @@ const num = (v) => (v === null || v === undefined || v === '' ? null : Number(de
 const str = (v) => (v ? decrypt(v) : null);
 const today = () => new Date().toISOString().slice(0, 10);
 const iso = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d);
+
+
+/** The item's current unit price from its history (the latest value point), or null. */
+async function currentPrice(bookId, itemKey) {
+  if (!itemKey) return null;
+  const { rows } = await db.query(
+    'SELECT amount_enc, unit_enc FROM value_points WHERE book_id = $1 AND item_key = $2 ORDER BY as_of DESC LIMIT 1',
+    [bookId, itemKey]);
+  if (!rows.length) return null;
+  return { unitPrice: num(rows[0].amount_enc), unit: str(rows[0].unit_enc) };
+}
+
+/** Append a price point for an item, as of a date — the price book updating itself. */
+async function recordPricePoint(bookId, itemKey, label, unitPrice, unit, asOf, who) {
+  const key = String(itemKey).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+  await db.query(
+    `INSERT INTO value_points (book_id, item_key, label_enc, unit_enc, amount_enc, as_of, recorded_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (book_id, item_key, as_of) DO UPDATE SET amount_enc = EXCLUDED.amount_enc`,
+    [bookId, key, label ? encrypt(label) : null, unit ? encrypt(unit) : null, encrypt(Number(unitPrice)), asOf, who]);
+}
 
 const guard = async (req, res) => {
   const book = await booksRoute.mayUse(req.params.bookId, req.taxpayerId);
@@ -166,16 +189,55 @@ router.post('/:bookId/entries', async (req, res, next) => {
       categoryId = rows[0] ? rows[0].id : null;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔑 UNIT PRICING. The item is keyed by its label (or category). The pricing
+    //    engine turns {quantity, unit, total} + the known price into a real total,
+    //    and tells us if the price moved — in which case we UPDATE the price book,
+    //    so the default tracks the change automatically.
+    // ═══════════════════════════════════════════════════════════════════════
+    const when = occurredOn || today();
+    let quantity = null, unit = null, unitPrice = null, finalTotal = Number(amount || 0);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔑 THE PRICE BOOK MAINTAINS ITSELF, FROM EVERY LABELLED ENTRY.
+    //
+    // Every money-in / money-out line that names an item runs through the pricing
+    // engine — so entering "rent 600" (no units, item never seen before) creates
+    // the rent default automatically, and "sugar, 2 Kg" fills the total from the
+    // known price. A transfer has no item, and a line with no label is a one-off;
+    // neither touches the book.
+    // ═══════════════════════════════════════════════════════════════════════
+    const itemLabel = String(label || '').trim();
+    if (direction !== 'transfer' && itemLabel) {
+      const itemKey = itemLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+      const known = await currentPrice(req.params.bookId, itemKey);
+      const r = PRICE.resolveLine(
+        { quantity: req.body.quantity, unit: req.body.unit, unitPrice: req.body.unitPrice,
+          total: (amount === undefined || amount === null || amount === '') ? undefined : amount },
+        known);
+      if (r.refused) return res.status(400).json(r);
+
+      quantity = r.quantity; unit = r.unit; unitPrice = r.unitPrice; finalTotal = r.total;
+
+      // 🔑 new item, or a moved price → record it. The default updates; the values
+      //    tab shows the movement. Same price = nothing recorded (no noise).
+      if (r.recordPrice != null && itemKey) {
+        await recordPricePoint(req.params.bookId, itemKey, itemLabel, r.recordPrice, r.unit, when, req.taxpayerId);
+      }
+    }
+
     const { rows } = await db.query(
       `INSERT INTO entries (book_id, author_id, occurred_on, direction, label_enc, category_id, currency,
-                            expected_enc, actual_enc, status, note_enc, account_id, from_account_id, to_account_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,'unplanned',$9,$10,$11,$12) RETURNING id`,
-      [req.params.bookId, req.taxpayerId, occurredOn || today(), direction,
+                            expected_enc, actual_enc, status, note_enc, account_id, from_account_id, to_account_id,
+                            quantity, unit, unit_price_enc)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,'unplanned',$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+      [req.params.bookId, req.taxpayerId, when, direction,
        encrypt(String(label || '')), categoryId, currency === 'USD' ? 'USD' : 'UGX',
-       encrypt(Number(amount || 0)), note ? encrypt(note) : null,
+       encrypt(Number(finalTotal || 0)), note ? encrypt(note) : null,
        direction === 'transfer' ? null : accountId,
        direction === 'transfer' ? fromAccountId : null,
-       direction === 'transfer' ? toAccountId : null]
+       direction === 'transfer' ? toAccountId : null,
+       quantity, unit, unitPrice != null ? encrypt(Number(unitPrice)) : null]
     );
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'entries', entityId: rows[0].id, req });
     res.json({ ok: true, id: rows[0].id });
@@ -366,6 +428,69 @@ router.delete('/:bookId/entries/:id', async (req, res, next) => {
     const { rowCount } = await db.query('DELETE FROM entries WHERE id = $1 AND book_id = $2', [req.params.id, req.params.bookId]);
     if (!rowCount) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'DELETE', entity: 'entries', entityId: req.params.id, req });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VALUE TRACKING — how a price or a value moves over time.
+//
+// 🔑 Recording a new value ADDS a dated point; it never overwrites the last one.
+//    The engine turns the history into change, growth and an honest projection.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Record the value of an item AS OF a date. Same day = a correction, not a new point. */
+router.post('/:bookId/values', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    const { itemKey, label, amount, asOf, unit, note } = req.body || {};
+    if (!itemKey || amount == null || !/^\d{4}-\d{2}-\d{2}$/.test(String(asOf || ''))) {
+      return res.status(400).json({ ok: false, error: 'BAD_INPUT',
+        headline: 'A value needs an item, an amount, and the date it applied.' });
+    }
+    const key = String(itemKey).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+    const { rows } = await db.query(
+      `INSERT INTO value_points (book_id, item_key, label_enc, unit_enc, amount_enc, as_of, note_enc, recorded_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (book_id, item_key, as_of)
+       DO UPDATE SET amount_enc = EXCLUDED.amount_enc, note_enc = EXCLUDED.note_enc
+       RETURNING id`,
+      [req.params.bookId, key, label ? encrypt(label) : null, unit ? encrypt(unit) : null,
+       encrypt(Number(amount)), asOf, note ? encrypt(note) : null, req.taxpayerId]
+    );
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'value_points', entityId: rows[0].id, req });
+    res.json({ ok: true, id: rows[0].id, itemKey: key });
+  } catch (e) { next(e); }
+});
+
+/** Every tracked item, each with its full history and trend — computed by the engine. */
+router.get('/:bookId/values', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    const { rows } = await db.audited(
+      { actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'READ', entity: 'value_points', req },
+      () => db.query('SELECT * FROM value_points WHERE book_id = $1 ORDER BY item_key, as_of', [req.params.bookId])
+    );
+    const byItem = {};
+    for (const r of rows) {
+      const it = byItem[r.item_key] || (byItem[r.item_key] = { key: r.item_key, label: str(r.label_enc), unit: str(r.unit_enc), points: [] });
+      it.points.push({ id: r.id, amount: num(r.amount_enc), asOf: iso(r.as_of) });
+    }
+    const items = Object.values(byItem).map((it) => ({
+      key: it.key,
+      ...VAL.track(it.points, { label: it.label || it.key, unit: it.unit }),
+      pointIds: it.points,   // so a wrong entry can be corrected/removed
+    }));
+    res.json({ ok: true, items });
+  } catch (e) { next(e); }
+});
+
+router.delete('/:bookId/values/:id', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    const { rowCount } = await db.query('DELETE FROM value_points WHERE id = $1 AND book_id = $2', [req.params.id, req.params.bookId]);
+    if (!rowCount) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'DELETE', entity: 'value_points', entityId: req.params.id, req });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

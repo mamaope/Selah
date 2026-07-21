@@ -1,0 +1,72 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SELAH DESKTOP — build Windows, macOS and Linux executables, automatically.
+#
+# 🔴 WHY THIS EXISTS: a macOS .dmg can ONLY be built on macOS, Windows on Windows,
+#    Linux on Linux. No single machine produces all three. This runs the build on
+#    one runner of each OS at once, so a single git tag yields every executable.
+#
+# HOW TO RELEASE:
+#     git tag v1.0.0
+#     git push origin v1.0.0
+#   → the three installers/portables appear under the Actions run's artifacts,
+#     and (on a tag) are attached to a GitHub Release.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Build Selah Desktop
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:        # also runnable by hand from the Actions tab
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            build: npm run dist:win
+          - os: macos-latest
+            build: npm run dist:mac
+          - os: ubuntu-latest
+            build: npm run dist:linux
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+
+      - name: Install
+        run: npm install
+
+      - name: Verify (the vault + the shared engine)
+        run: npm test
+
+      - name: Build the executable
+        run: ${{ matrix.build }}
+
+      - name: Upload the executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: selah-${{ matrix.os }}
+          # ship the installers/portables, not the unpacked build tree
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.dmg
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+          if-no-files-found: warn
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - name: Attach to the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*

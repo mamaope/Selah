@@ -729,6 +729,8 @@ function booksFetch(o) {
     if (/\/categories$/.test(url) && m === 'POST')            { opts.added = JSON.parse(init.body); return json(200, { ok: true, id: 'c9', key: 'school_run' }); }
     if (/\/confirm$/.test(url)) { opts.confirmed = JSON.parse(init.body); return json(opts.confirmStatus || 200, opts.confirmResponse || { ok: true }); }
     if (/did-not-arrive$/.test(url)) { opts.missed = true; return json(200, { ok: true, kept: true }); }
+    if (/\/values$/.test(url) && m === 'GET') return json(200, { ok: true, items: opts.trackedItems || [] });
+    if (/\/values$/.test(url) && m === 'POST') { opts.recorded = JSON.parse(init.body); return json(200, { ok: true, id: 'v1', itemKey: opts.recorded.itemKey }); }
     if (/\/forecast$/.test(url)) return json(200, opts.forecast || { ok: true, comingUp: { items: [] }, suggestedBudget: { lines: [], lumpy: [] } });
     if (/\/health$/.test(url))   return json(200, opts.health || { ok: true, balances: [], netWorth: {}, emergencyFund: {}, savingsRate: {} });
     if (/accounts\/mine$/.test(url)) return json(200, { ok: true, accounts: [], types: { cash: { label: 'Cash' } } });
@@ -1889,6 +1891,120 @@ section('📆 PAST AND FUTURE MONTHS — walk backward to look, forward to plan'
   await w.SelahActions.bgSaveAll(); await settle();
   ok('🔑 ...so saving a figure budgets THAT future month',
      saved.length === 1 && saved[0].startsOn === from);
+}
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+section('📈 PRICES & VALUES — a number with a history, not just a number');
+{
+  const V = require('../engine/values');
+  const gas = V.track([
+    { amount: 100000, asOf: '2026-05-15' },
+    { amount: 105000, asOf: '2026-06-15' },
+    { amount: 108000, asOf: '2026-07-15' },
+  ], { label: 'Gas' });
+
+  const o = { trackedItems: [ { key: 'gas', ...gas, pointIds: [
+    { id: 'p1', amount: 100000, asOf: '2026-05-15' },
+    { id: 'p2', amount: 105000, asOf: '2026-06-15' },
+    { id: 'p3', amount: 108000, asOf: '2026-07-15' },
+  ] } ] };
+
+  const { w, D } = boot(booksFetch(o));
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  w.SelahActions.bkTab(D.querySelector('[data-tab="plan"]')); await settle();
+
+  const box = D.getElementById('vt-list').textContent;
+  ok('🔑 the tracked item shows its CURRENT value', /108,000/.test(box));
+  ok('🔑 ...and the change since last time', /3,000|2\.9%/.test(box));
+  ok('...and a growth-per-month figure', /%\/month/.test(box));
+  ok('🔴 ...and a projection LABELLED a guess, not a promise',
+     /If the trend holds/.test(box) && /not a fact, and not money/.test(box));
+  ok('the full history is shown, every point removable',
+     /2026-05-15/.test(box) && !!D.querySelector('#vt-list [data-action="vtDel"]'));
+
+  // recording a new value ADDS a point (does not overwrite)
+  D.getElementById('vt-item').value = 'Gas';
+  D.getElementById('vt-amount').value = '110000';
+  D.getElementById('vt-date').value = '2026-08-15';
+  await w.SelahActions.vtRecord(); await settle();
+  ok('🔑 recording a value POSTs a new dated point', o.recorded && o.recorded.amount === 110000 && o.recorded.asOf === '2026-08-15');
+  ok('...keyed by the item, so it joins the SAME history', o.recorded.itemKey === 'Gas');
+}
+
+{
+  // two points only → no projection; the engine refuses and the UI shows why
+  const V = require('../engine/values');
+  const salary = V.track([
+    { amount: 1000000, asOf: '2026-06-01' },
+    { amount: 1200000, asOf: '2026-07-01' },
+  ], { label: 'Salary' });
+  const { w, D } = boot(booksFetch({ trackedItems: [{ key: 'salary', ...salary, pointIds: [
+    { id: 'p1', amount: 1000000, asOf: '2026-06-01' }, { id: 'p2', amount: 1200000, asOf: '2026-07-01' } ] }] }));
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  w.SelahActions.bkTab(D.querySelector('[data-tab="plan"]')); await settle();
+
+  const box = D.getElementById('vt-list').textContent;
+  ok('🔑 a salary raise shows +20%', /\+20%/.test(box));
+  ok('🔴 ...but with only 2 points, NO projection is shown — it says why', /guess wearing a suit/.test(box));
+}
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+section('🧮 UNIT PRICING — quantity in, total out; and the price book updates');
+{
+  const P = require('../engine/pricing');
+  // pure-engine sanity, alongside the UI wiring
+  ok('engine: 2 Kg of sugar @1000 → 2000 total', P.resolveLine({ quantity: 2 }, { unitPrice: 1000, unit: 'Kg' }).total === 2000);
+  ok('engine: 1200 for 1 Kg → price moved, recordPrice=1200', (() => { const r = P.resolveLine({ quantity: 1, total: 1200 }, { unitPrice: 1000, unit: 'Kg' }); return r.priceChanged && r.recordPrice === 1200; })());
+
+  const saved = [];
+  const gasItem = require('../engine/values').track([{ amount: 1000, asOf: '2026-07-01' }], { label: 'Sugar', unit: 'Kg' });
+  const o = { trackedItems: [{ key: 'sugar', ...gasItem, unit: 'Kg', pointIds: [{ id: 'p1', amount: 1000, asOf: '2026-07-01' }] }] };
+  const { w, D } = boot((url, init) => {
+    if (/\/entries$/.test(url) && init && init.method === 'POST') { saved.push(JSON.parse(init.body)); return json(200, { ok: true, id: 'e1' }); }
+    return booksFetch(o)(url, init);
+  });
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+
+  w.SelahActions.bkOpenSheet(); await settle();
+  ok('the Record sheet has quantity + unit fields', !!D.getElementById('bk-qty') && !!D.getElementById('bk-unit'));
+
+  // 🔑 type a known item + a quantity, no total → the total auto-fills
+  D.getElementById('bk-label').value = 'Sugar';
+  D.getElementById('bk-label').dispatchEvent(new w.Event('input', { bubbles: true }));
+  D.getElementById('bk-qty').value = '2';
+  D.getElementById('bk-qty').dispatchEvent(new w.Event('input', { bubbles: true }));
+  await settle();
+  ok('🔑 2 Kg of Sugar auto-fills the total to 2,000', D.getElementById('bk-amount').value === '2000');
+  ok('...and the unit is picked up from the price book', D.getElementById('bk-unit').value === 'Kg');
+  ok('...with a shown working: 2 × 1,000 = 2,000', /2 × 1,000.*2,000/.test(D.getElementById('bk-price-hint').textContent));
+
+  // save → quantity + unit go to the server (which resolves + maintains the book)
+  D.getElementById('bk-acct').value = 'a1';
+  await w.SelahActions.bkAddEntry(); await settle();
+  ok('🔑 the entry POSTs the quantity and unit', saved[0].quantity === 2 && saved[0].unit === 'Kg');
+}
+
+{
+  // quantity-only with NO amount typed is allowed (server fills it); a bare nothing is not
+  const { w, D } = boot(booksFetch({ trackedItems: [] }));
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  w.SelahActions.bkOpenSheet();
+  D.getElementById('bk-label').value = 'Mystery';
+  await w.SelahActions.bkAddEntry(); await settle();
+  ok('🔴 neither a total nor a quantity → asks "how much, or how many?"',
+     /How much, or how many/.test(D.getElementById('bk-sheet-msg').textContent));
 }
 
 
