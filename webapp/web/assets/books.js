@@ -1029,7 +1029,7 @@
   // worse than no button: the person concludes the app is broken, and they are
   // not wrong.
   // ═══════════════════════════════════════════════════════════════════════════
-  const PANES = ['month', 'budget', 'plan', 'ahead'];
+  const PANES = ['month', 'budget', 'plan', 'ahead', 'shopping'];
 
   A.bkTab = (el) => {
     const want = el.dataset.tab;
@@ -1038,6 +1038,7 @@
     if (want === 'ahead') A.bkForecast();
     if (want === 'budget') fillBudgetForm();
     if (want === 'plan') renderDefaults();
+    if (want === 'shopping') renderShopping();
   };
 
   // ── MY DEFAULTS — the template. "Set it once." ─────────────────────────────
@@ -1243,4 +1244,134 @@
         (rec.whatThisMeans ? '<p class="muted">' + esc(rec.whatThisMeans) + '</p>' : '') +
       '</div>';
   };
+  // ── SHOPPING — a plan that becomes spending ────────────────────────────────
+  //
+  // 🔑 The estimate is only ever the sum of prices Selah ALREADY KNOWS. An item
+  //    it has never priced shows "—", not a guess. Marking done routes through the
+  //    same expense path as the Record sheet, so the real price is what sticks.
+
+  const acctOpts = () =>
+    '<option value="">— which account? —</option>' +
+    accts.map((a) => '<option value="' + esc(a.id) + '">' + esc(a.name) + (a.scope === 'book' ? ' (shared)' : '') + '</option>').join('');
+
+  async function renderShopping() {
+    const box = $('shopping-lists'); if (!box) return;
+    const r = await API.shopping(current.id);
+    if (!handle(r)) return;
+    const lists = (r.ok && r.lists) || [];
+    if (!lists.length) {
+      box.innerHTML = '<p class="muted">No lists yet. Add one above — say, “Grocery”.</p>';
+      return;
+    }
+    box.innerHTML = lists.map(renderList).join('');
+  }
+
+  function renderList(l) {
+    const rows = (l.rows || []).map((it) => {
+      const done = it.status === 'done';
+      const est = done
+        ? '<span class="saved">✓ ' + fmt(it.actualAmount) + '</span>'
+        : (it.estimate == null ? '<span class="muted">—</span>' : '~' + fmt(it.estimate));
+      const action = done
+        ? '<span class="muted">bought</span>'
+        : '<button class="ghost" data-action="bkShopMark" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Mark bought</button>' +
+          ' <button class="ghost" data-action="bkDelShopItem" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '" aria-label="Remove">✕</button>';
+      const doneForm =
+        '<tr id="done-' + esc(it.id) + '" hidden><td colspan="5">' +
+          '<div class="card ask" style="margin:.3rem 0">' +
+            '<p class="muted">What did you actually pay for <strong>' + esc(it.label) + '</strong>? This records a real expense.</p>' +
+            '<div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap">' +
+              '<div><label>Paid (total)</label><input type="number" id="paid-' + esc(it.id) + '" placeholder="' + (it.estimate != null ? fmt(it.estimate) : 'amount') + '"></div>' +
+              '<div><label>How many' + (it.unit ? ' (' + esc(it.unit) + ')' : '') + '</label><input type="number" id="qty-' + esc(it.id) + '" value="' + esc(it.quantity) + '"></div>' +
+              '<div><label>From account</label><select id="acct-' + esc(it.id) + '">' + acctOpts() + '</select></div>' +
+              '<button class="primary" data-action="bkShopDone" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Bought</button>' +
+            '</div>' +
+            '<p id="done-msg-' + esc(it.id) + '" class="hint"></p>' +
+          '</div>' +
+        '</td></tr>';
+      return '<tr' + (done ? ' class="muted"' : '') + '>' +
+        '<td>' + esc(it.label) + '</td>' +
+        '<td class="num">' + esc(it.quantity) + '</td>' +
+        '<td>' + esc(it.unit || '') + '</td>' +
+        '<td class="num">' + est + '</td>' +
+        '<td>' + action + '</td>' +
+      '</tr>' + doneForm;
+    }).join('');
+
+    const c = l.counts || {};
+    const summary =
+      '<p class="muted">' + esc(c.done || 0) + ' of ' + esc(c.total || 0) + ' bought · ' +
+      'spent ' + fmt(l.spentSoFar) + ' · still to buy ~' + fmt(l.remainingEstimate) +
+      (l.unpricedCount ? ' · ' + esc(l.unpricedCount) + ' with no known price' : '') + '</p>';
+
+    return '<div class="card">' +
+      '<div class="cardhead"><h3>' + esc(l.name) + '</h3></div>' +
+      summary +
+      '<div class="tablewrap"><table class="t">' +
+        '<thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Estimate</th><th></th></tr></thead>' +
+        '<tbody>' + (rows || '<tr><td colspan="5" class="muted">Nothing on this list yet.</td></tr>') + '</tbody>' +
+      '</table></div>' +
+      '<div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap;margin-top:.6rem">' +
+        '<div><label>Item</label><input type="text" id="si-label-' + esc(l.id) + '" placeholder="Sugar, milk, soap"></div>' +
+        '<div><label>How many</label><input type="number" id="si-qty-' + esc(l.id) + '" value="1"></div>' +
+        '<div><label>Unit</label><input type="text" id="si-unit-' + esc(l.id) + '" list="unit-list" placeholder="(optional)"></div>' +
+        '<button class="primary" data-action="bkAddShopItem" data-list="' + esc(l.id) + '">Add item</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  A.bkAddList = async () => {
+    const name = $('sl-name').value.trim();
+    if (!name) { $('sl-msg').textContent = 'Give the list a name.'; return; }
+    const r = await API.addList(current.id, name);
+    if (!handle(r)) return;
+    if (!r.ok) { $('sl-msg').textContent = r.headline || 'That did not work.'; return; }
+    $('sl-name').value = ''; $('sl-msg').innerHTML = '<span class="saved">✓ Added.</span>';
+    await renderShopping();
+  };
+
+  A.bkAddShopItem = async (el) => {
+    const lid = el.dataset.list;
+    const label = $('si-label-' + lid).value.trim();
+    if (!label) return;
+    const qtyRaw = $('si-qty-' + lid).value;
+    const r = await API.addShopItem(current.id, lid, {
+      label,
+      quantity: qtyRaw === '' ? undefined : Number(qtyRaw),
+      unit: $('si-unit-' + lid).value.trim() || undefined,
+    });
+    if (!handle(r)) return;
+    await renderShopping();
+  };
+
+  A.bkDelShopItem = async (el) => {
+    const r = await API.delShopItem(current.id, el.dataset.list, el.dataset.id);
+    if (!handle(r)) return;
+    await renderShopping();
+  };
+
+  // Reveal the "what did you pay" form for one item.
+  A.bkShopMark = (el) => {
+    const row = $('done-' + el.dataset.id);
+    if (row) { row.hidden = !row.hidden; if (!row.hidden) setTimeout(() => { const f = $('paid-' + el.dataset.id); if (f) f.focus(); }, 0); }
+  };
+
+  A.bkShopDone = async (el) => {
+    const id = el.dataset.id, lid = el.dataset.list;
+    const msg = $('done-msg-' + id);
+    const paidRaw = $('paid-' + id).value;
+    const qtyRaw = $('qty-' + id).value;
+    const accountId = $('acct-' + id).value;
+    if (!accountId) { if (msg) msg.textContent = 'Say which account you paid from.'; return; }
+    const r = await API.shopDone(current.id, lid, id, {
+      accountId,
+      actualAmount: paidRaw === '' ? undefined : Number(paidRaw),
+      quantity: qtyRaw === '' ? undefined : Number(qtyRaw),
+    });
+    if (!handle(r)) return;
+    if (!r.ok) { if (msg) msg.textContent = r.headline || 'That did not work.'; return; }
+    await renderShopping();
+    await refresh();   // the new expense belongs in the month total too
+  };
+
 })();

@@ -20,6 +20,7 @@ const R = require('../../engine/rollup');
 const F = require('../../engine/forecast');
 const VAL = require('../../engine/values');
 const PRICE = require('../../engine/pricing');
+const SHOP = require('../../engine/shopping');
 const booksRoute = require('./books');
 
 const router = express.Router();
@@ -53,6 +54,53 @@ async function recordPricePoint(bookId, itemKey, label, unitPrice, unit, asOf, w
        -- 🔑 a later entry that carries a unit FILLS IN a default that had none.
        unit_enc = COALESCE(EXCLUDED.unit_enc, value_points.unit_enc)`,
     [bookId, key, label ? encrypt(label) : null, unit ? encrypt(unit) : null, encrypt(Number(unitPrice)), asOf, who, dir]);
+}
+
+
+/**
+ * Create an entry from a body, running unit pricing and maintaining the price book.
+ * Shared by the Record sheet (POST /entries) and shopping mark-done — one path, so
+ * a purchase logged from a shopping list is priced and tracked identically.
+ * @returns { id } or { refused } (a pricing refusal to bubble up)
+ */
+async function createEntryFrom(bookId, authorId, body) {
+  const { direction, label, amount, category, accountId, fromAccountId, toAccountId, occurredOn, note, currency } = body || {};
+  const when = occurredOn || today();
+  let quantity = null, unit = null, unitPrice = null, finalTotal = Number(amount || 0);
+  let categoryId = null;
+  if (category) {
+    const { rows } = await db.query('SELECT id FROM categories WHERE book_id = $1 AND key = $2', [bookId, category]);
+    categoryId = rows[0] ? rows[0].id : null;
+  }
+
+  const itemLabel = String(label || '').trim();
+  if (direction !== 'transfer' && itemLabel) {
+    const itemKey = itemLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+    const known = await currentPrice(bookId, itemKey);
+    const r = PRICE.resolveLine(
+      { quantity: body.quantity, unit: body.unit, unitPrice: body.unitPrice,
+        total: (amount === undefined || amount === null || amount === '') ? undefined : amount },
+      known);
+    if (r.refused) return { refused: r };
+    quantity = r.quantity; unit = r.unit; unitPrice = r.unitPrice; finalTotal = r.total;
+    if (r.recordPrice != null && itemKey) {
+      await recordPricePoint(bookId, itemKey, itemLabel, r.recordPrice, r.unit, when, authorId, direction);
+    }
+  }
+
+  const { rows } = await db.query(
+    `INSERT INTO entries (book_id, author_id, occurred_on, direction, label_enc, category_id, currency,
+                          expected_enc, actual_enc, status, note_enc, account_id, from_account_id, to_account_id,
+                          quantity, unit, unit_price_enc)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,'unplanned',$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+    [bookId, authorId, when, direction,
+     encrypt(String(label || '')), categoryId, currency === 'USD' ? 'USD' : 'UGX',
+     encrypt(Number(finalTotal || 0)), note ? encrypt(note) : null,
+     direction === 'transfer' ? null : accountId,
+     direction === 'transfer' ? fromAccountId : null,
+     direction === 'transfer' ? toAccountId : null,
+     quantity, unit, unitPrice != null ? encrypt(Number(unitPrice)) : null]);
+  return { id: rows[0].id, total: finalTotal, unit, quantity };
 }
 
 const guard = async (req, res) => {
@@ -159,16 +207,11 @@ router.post('/:bookId/stage', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ENTRIES
-// ═══════════════════════════════════════════════════════════════════════════
-
-/** Record something that happened. The daily flow: amount, category, account, done. */
+/** Record something that happened — money in, out, or a transfer. Unit pricing runs. */
 router.post('/:bookId/entries', async (req, res, next) => {
   try {
     if (!await guard(req, res)) return;
-    const { direction, label, amount, category, accountId, fromAccountId, toAccountId, occurredOn, note, currency } = req.body || {};
-
+    const { direction, accountId, fromAccountId, toAccountId } = req.body || {};
     if (!['in', 'out', 'transfer'].includes(direction)) return res.status(400).json({ ok: false, error: 'BAD_DIRECTION' });
 
     // 🔴 A TRANSFER TOUCHES TWO ACCOUNTS AND ZERO TOTALS.
@@ -179,72 +222,17 @@ router.post('/:bookId/entries', async (req, res, next) => {
           why: ['Moving money from an account to itself is not a transfer, and moving it out of nowhere is not either.'] });
       }
     } else if (!accountId) {
-      // 🔴 REQUIRED. NO DEFAULTS. A pre-filled account is a guess that gets tapped
-      //    through without being read, and it puts a month's rent in the wrong pocket.
+      // 🔴 REQUIRED. NO DEFAULTS. A pre-filled account is a guess that puts your rent in the wrong pocket.
       return res.status(400).json({ ok: false, error: 'ACCOUNT_REQUIRED',
         headline: 'Which account did this money touch?',
         why: ['Your balances are worked out from these entries. An entry with no account changes no balance — and the account it really moved through would be quietly wrong from now on.'],
         whatYouCanDoNow: ['Say where the money came from, or went to: cash, MoMo, the bank, the SACCO.'] });
     }
 
-    let categoryId = null;
-    if (category) {
-      const { rows } = await db.query('SELECT id FROM categories WHERE book_id = $1 AND key = $2', [req.params.bookId, category]);
-      categoryId = rows[0] ? rows[0].id : null;
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // 🔑 UNIT PRICING. The item is keyed by its label (or category). The pricing
-    //    engine turns {quantity, unit, total} + the known price into a real total,
-    //    and tells us if the price moved — in which case we UPDATE the price book,
-    //    so the default tracks the change automatically.
-    // ═══════════════════════════════════════════════════════════════════════
-    const when = occurredOn || today();
-    let quantity = null, unit = null, unitPrice = null, finalTotal = Number(amount || 0);
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // 🔑 THE PRICE BOOK MAINTAINS ITSELF, FROM EVERY LABELLED ENTRY.
-    //
-    // Every money-in / money-out line that names an item runs through the pricing
-    // engine — so entering "rent 600" (no units, item never seen before) creates
-    // the rent default automatically, and "sugar, 2 Kg" fills the total from the
-    // known price. A transfer has no item, and a line with no label is a one-off;
-    // neither touches the book.
-    // ═══════════════════════════════════════════════════════════════════════
-    const itemLabel = String(label || '').trim();
-    if (direction !== 'transfer' && itemLabel) {
-      const itemKey = itemLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
-      const known = await currentPrice(req.params.bookId, itemKey);
-      const r = PRICE.resolveLine(
-        { quantity: req.body.quantity, unit: req.body.unit, unitPrice: req.body.unitPrice,
-          total: (amount === undefined || amount === null || amount === '') ? undefined : amount },
-        known);
-      if (r.refused) return res.status(400).json(r);
-
-      quantity = r.quantity; unit = r.unit; unitPrice = r.unitPrice; finalTotal = r.total;
-
-      // 🔑 new item, or a moved price → record it. The default updates; the values
-      //    tab shows the movement. Same price = nothing recorded (no noise).
-      if (r.recordPrice != null && itemKey) {
-        await recordPricePoint(req.params.bookId, itemKey, itemLabel, r.recordPrice, r.unit, when, req.taxpayerId, direction);
-      }
-    }
-
-    const { rows } = await db.query(
-      `INSERT INTO entries (book_id, author_id, occurred_on, direction, label_enc, category_id, currency,
-                            expected_enc, actual_enc, status, note_enc, account_id, from_account_id, to_account_id,
-                            quantity, unit, unit_price_enc)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,'unplanned',$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
-      [req.params.bookId, req.taxpayerId, when, direction,
-       encrypt(String(label || '')), categoryId, currency === 'USD' ? 'USD' : 'UGX',
-       encrypt(Number(finalTotal || 0)), note ? encrypt(note) : null,
-       direction === 'transfer' ? null : accountId,
-       direction === 'transfer' ? fromAccountId : null,
-       direction === 'transfer' ? toAccountId : null,
-       quantity, unit, unitPrice != null ? encrypt(Number(unitPrice)) : null]
-    );
-    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'entries', entityId: rows[0].id, req });
-    res.json({ ok: true, id: rows[0].id });
+    const created = await createEntryFrom(req.params.bookId, req.taxpayerId, req.body);
+    if (created.refused) return res.status(400).json(created.refused);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'entries', entityId: created.id, req });
+    res.json({ ok: true, id: created.id });
   } catch (e) { next(e); }
 });
 
@@ -548,6 +536,118 @@ router.post('/:bookId/stage-defaults', async (req, res, next) => {
     res.json({ ok: true, staged: n, period: { from, to },
       note: n ? `${n} default${n===1?'':'s'} drafted for this month. They are counted in nothing until you confirm them.`
               : 'Everything from your defaults is already drafted for this month.' });
+  } catch (e) { next(e); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHOPPING LISTS — a plan that becomes spending.
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get('/:bookId/shopping', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    const { rows: lists } = await db.audited(
+      { actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'READ', entity: 'shopping_lists', req },
+      () => db.query("SELECT * FROM shopping_lists WHERE book_id = $1 AND status = 'open' ORDER BY created_at DESC", [req.params.bookId]));
+
+    // the price book, so each item can be estimated
+    const { rows: vp } = await db.query('SELECT DISTINCT ON (item_key) item_key, amount_enc, unit_enc FROM value_points WHERE book_id = $1 ORDER BY item_key, as_of DESC', [req.params.bookId]);
+    const priceBook = {};
+    for (const r of vp) priceBook[r.item_key] = { unitPrice: num(r.amount_enc), unit: str(r.unit_enc) };
+
+    const out = [];
+    for (const l of lists) {
+      const { rows: items } = await db.query('SELECT * FROM shopping_items WHERE list_id = $1 ORDER BY position, created_at', [l.id]);
+      const shaped = items.map((i) => ({
+        id: i.id, label: str(i.label_enc), quantity: i.quantity != null ? Number(i.quantity) : 1,
+        unit: i.unit, status: i.status, actualAmount: num(i.actual_enc), entryId: i.entry_id,
+      }));
+      out.push({ id: l.id, name: str(l.name_enc), ...SHOP.planList(shaped, priceBook) });
+    }
+    res.json({ ok: true, lists: out });
+  } catch (e) { next(e); }
+});
+
+router.post('/:bookId/shopping', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    const name = String(req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ ok: false, error: 'NAME_REQUIRED', headline: 'Give the list a name.' });
+    const { rows } = await db.query('INSERT INTO shopping_lists (book_id, name_enc) VALUES ($1,$2) RETURNING id', [req.params.bookId, encrypt(name)]);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'shopping_lists', entityId: rows[0].id, req });
+    res.json({ ok: true, id: rows[0].id });
+  } catch (e) { next(e); }
+});
+
+async function listInBook(listId, bookId) {
+  const { rows } = await db.query('SELECT id FROM shopping_lists WHERE id = $1 AND book_id = $2', [listId, bookId]);
+  return rows.length > 0;
+}
+
+router.post('/:bookId/shopping/:listId/items', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    if (!await listInBook(req.params.listId, req.params.bookId)) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    const label = String(req.body?.label || '').trim();
+    if (!label) return res.status(400).json({ ok: false, error: 'LABEL_REQUIRED', headline: 'What are you buying?' });
+    const { rows } = await db.query(
+      'INSERT INTO shopping_items (list_id, label_enc, quantity, unit) VALUES ($1,$2,$3,$4) RETURNING id',
+      [req.params.listId, encrypt(label), req.body?.quantity != null ? Number(req.body.quantity) : null, req.body?.unit || null]);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'shopping_items', entityId: rows[0].id, req });
+    res.json({ ok: true, id: rows[0].id });
+  } catch (e) { next(e); }
+});
+
+router.delete('/:bookId/shopping/:listId/items/:id', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    if (!await listInBook(req.params.listId, req.params.bookId)) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    await db.query('DELETE FROM shopping_items WHERE id = $1 AND list_id = $2', [req.params.id, req.params.listId]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/**
+ * 🔑 MARK AN ITEM DONE → it becomes a real expense, priced and price-book-updating.
+ *
+ * You give what you ACTUALLY paid (and, if it differed, the quantity). We create a
+ * money-out entry through the SAME pricing path as the Record sheet — so the actual
+ * price flows into the price book, and the expense is linked back to the item.
+ */
+router.post('/:bookId/shopping/:listId/items/:id/done', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    if (!await listInBook(req.params.listId, req.params.bookId)) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    const { rows: it } = await db.query('SELECT * FROM shopping_items WHERE id = $1 AND list_id = $2', [req.params.id, req.params.listId]);
+    if (!it.length) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    const item = it[0];
+
+    const { accountId, actualAmount, quantity } = req.body || {};
+    if (!accountId) {
+      return res.status(400).json({ ok: false, error: 'ACCOUNT_REQUIRED',
+        headline: 'Which account did you pay from?',
+        why: ['Marking this done records a real expense, and an expense must say where the money came from.'] });
+    }
+
+    // 🔑 the actual purchase → a money-out entry, through the shared pricing path.
+    const created = await createEntryFrom(req.params.bookId, req.taxpayerId, {
+      direction: 'out',
+      label: str(item.label_enc),
+      quantity: quantity != null ? quantity : (item.quantity != null ? Number(item.quantity) : undefined),
+      unit: item.unit || undefined,
+      total: actualAmount,                       // what you actually paid (may move the price)
+      accountId,
+      occurredOn: today(),
+    });
+    if (created.refused) return res.status(400).json(created.refused);
+
+    await db.query(
+      "UPDATE shopping_items SET status = 'done', actual_enc = $1, done_at = now(), entry_id = $2, quantity = COALESCE($3, quantity) WHERE id = $4",
+      [encrypt(Number(created.total || actualAmount || 0)), created.id, quantity != null ? Number(quantity) : null, req.params.id]);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'UPDATE', entity: 'shopping_items', entityId: req.params.id, req });
+
+    res.json({ ok: true, entryId: created.id, total: created.total,
+      note: 'Bought, and recorded as an expense. If the price moved, your default is updated.' });
   } catch (e) { next(e); }
 });
 

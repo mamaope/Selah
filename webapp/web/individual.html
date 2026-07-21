@@ -353,6 +353,7 @@
       <button class="tab" data-action="bkTab" data-tab="budget">Budget</button>
       <button class="tab" data-action="bkTab" data-tab="plan">My defaults</button>
       <button class="tab" data-action="bkTab" data-tab="ahead">What&#39;s coming</button>
+      <button class="tab" data-action="bkTab" data-tab="shopping">Shopping</button>
     </div>
 
     <!-- ══ MY DEFAULTS — the template. This is "set it once". ═══════════════ -->
@@ -401,6 +402,27 @@
         <p class="hint">A value with no price yet can be added — leave it blank and it fills in the first time you record an entry for it.</p>
         <p id="df-msg" class="hint"></p>
       </div>
+    </div>
+
+    <!-- ══ SHOPPING — a plan that becomes spending ═════════════════════
+         🔑 A list is a plan. Add what you mean to buy, with how many. If Selah
+         knows the price, it estimates — it NEVER invents one it doesn't know.
+         Mark an item done and it becomes a real expense, priced from what you
+         actually paid, linked back, and the price book learns the new price. -->
+    <div id="bk-pane-shopping" class="stack" hidden>
+      <div class="card">
+        <div class="cardhead">
+          <h3>Shopping lists</h3>
+        </div>
+        <p class="muted">Plan what to buy. Selah estimates from prices it already knows — and when you
+          mark something bought, it becomes a real expense, linked to this item.</p>
+        <div class="row" style="gap:.5rem;align-items:flex-end">
+          <div><label>New list</label><input type="text" id="sl-name" placeholder="Grocery, hardware, pharmacy"></div>
+          <button class="primary" data-action="bkAddList">Add list</button>
+        </div>
+        <p id="sl-msg" class="hint"></p>
+      </div>
+      <div id="shopping-lists" class="stack"></div>
     </div>
 
     <!-- ══ BUDGET — ONE EDITABLE TABLE, AND NOTHING ELSE ═══════════════════

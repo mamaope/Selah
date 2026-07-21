@@ -731,6 +731,11 @@ function booksFetch(o) {
     if (/did-not-arrive$/.test(url)) { opts.missed = true; return json(200, { ok: true, kept: true }); }
     if (/\/values$/.test(url) && m === 'GET') return json(200, { ok: true, items: opts.trackedItems || [] });
     if (/\/values$/.test(url) && m === 'POST') { opts.recorded = JSON.parse(init.body); return json(200, { ok: true, id: 'v1', itemKey: opts.recorded.itemKey }); }
+    if (/\/shopping$/.test(url) && m === 'GET')  return json(200, { ok: true, lists: opts.shoppingLists || [] });
+    if (/\/shopping$/.test(url) && m === 'POST') { opts.listAdded = JSON.parse(init.body); return json(200, { ok: true, id: 'sl1' }); }
+    if (/\/shopping\/[^/]+\/items\/[^/]+\/done$/.test(url) && m === 'POST') { opts.shopDone = JSON.parse(init.body); return json(opts.shopDoneStatus || 200, opts.shopDoneResponse || { ok: true, entryId: 'e9', total: 6000 }); }
+    if (/\/shopping\/[^/]+\/items\/[^/]+$/.test(url) && m === 'DELETE') { opts.shopItemDeleted = url; return json(200, { ok: true }); }
+    if (/\/shopping\/[^/]+\/items$/.test(url) && m === 'POST') { opts.shopItemAdded = JSON.parse(init.body); return json(200, { ok: true, id: 'si1' }); }
     if (/\/forecast$/.test(url)) return json(200, opts.forecast || { ok: true, comingUp: { items: [] }, suggestedBudget: { lines: [], lumpy: [] } });
     if (/\/health$/.test(url))   return json(200, opts.health || { ok: true, balances: [], netWorth: {}, emergencyFund: {}, savingsRate: {} });
     if (/accounts\/mine$/.test(url)) return json(200, { ok: true, accounts: [], types: { cash: { label: 'Cash' } } });
@@ -994,11 +999,11 @@ section('🧭 FINDING YOUR WAY — the app was unnavigable, and that is a bug');
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
 
   const tabs = [...D.querySelectorAll('.tabs .tab')];
-  ok('a Book has four tabs', tabs.length === 4);
+  ok('a Book has five tabs', tabs.length === 5);
   // 🔑 THE ORDER IS THE STORY: what happened, then what judges it, then what I
-  //    expect every month, then what is coming.
-  ok('...in the order: This month · Budget · My defaults · What\'s coming',
-     tabs.map((t) => t.dataset.tab).join(',') === 'month,budget,plan,ahead');
+  //    expect every month, then what is coming, then what I mean to buy.
+  ok('...in the order: This month · Budget · My defaults · What\'s coming · Shopping',
+     tabs.map((t) => t.dataset.tab).join(',') === 'month,budget,plan,ahead,shopping');
   ok('...and "This month" is the one you land on', tabs[0].classList.contains('active'));
 
   // 🔑 THE DEFAULTS ARE ONE TABLE — the plan and the price book unified.
@@ -1956,6 +1961,49 @@ section('🧮 UNIT PRICING — quantity in, total out; and the price book update
   await w.SelahActions.bkAddEntry(); await settle();
   ok('🔴 neither a total nor a quantity → asks "how much, or how many?"',
      /How much, or how many/.test(D.getElementById('bk-sheet-msg').textContent));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an expense');
+{
+  // a list with one priced item (sugar, 2 Kg, known 1000) and one un-priced (soap)
+  const S = require('../engine/shopping');
+  const plan = S.planList(
+    [{ id: 'i1', label: 'Sugar', quantity: 2, unit: 'Kg', status: 'pending' },
+     { id: 'i2', label: 'Soap',  quantity: 1, status: 'pending' }],
+    { sugar: { unitPrice: 1000, unit: 'Kg' } });
+  const lists = [{ id: 'sl1', name: 'Grocery', ...plan }];
+
+  const o = { shoppingLists: lists };
+  const { w, D } = boot(booksFetch(o));
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  await w.SelahActions.bkTab({ dataset: { tab: 'shopping' } }); await settle();
+
+  const pane = D.getElementById('shopping-lists').textContent;
+  ok('the list and its items are shown', /Grocery/.test(pane) && /Sugar/.test(pane) && /Soap/.test(pane));
+  ok('🔑 the priced item shows an estimate (2 × 1,000 = 2,000)', /2,000/.test(pane));
+  ok('🔴 the un-priced item shows no invented number', /no known price/.test(pane));
+
+  // add an item
+  D.getElementById('si-label-sl1').value = 'Milk';
+  await w.SelahActions.bkAddShopItem(D.querySelector('[data-action="bkAddShopItem"]')); await settle();
+  ok('adding an item POSTs its label', o.shopItemAdded && o.shopItemAdded.label === 'Milk');
+
+  // mark bought → reveals the "what did you pay" form
+  w.SelahActions.bkShopMark({ dataset: { list: 'sl1', id: 'i1' } }); await settle();
+  ok('marking bought reveals the paid form', !D.getElementById('done-i1').hidden);
+
+  // 🔴 no account chosen → refuses to record
+  await w.SelahActions.bkShopDone({ dataset: { list: 'sl1', id: 'i1' } }); await settle();
+  ok('🔴 done with no account is refused in the UI', /which account/i.test(D.getElementById('done-msg-i1').textContent));
+
+  // choose account + pay → records the purchase
+  D.getElementById('paid-i1').value = '2100';
+  D.getElementById('acct-i1').value = 'a1';
+  await w.SelahActions.bkShopDone({ dataset: { list: 'sl1', id: 'i1' } }); await settle();
+  ok('🔑 buying POSTs the account and the actual amount', o.shopDone && o.shopDone.accountId === 'a1' && o.shopDone.actualAmount === 2100);
 }
 
 
