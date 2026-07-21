@@ -988,10 +988,7 @@ section('🧭 FINDING YOUR WAY — the app was unnavigable, and that is a bug');
 // ── 🔴 "DRAFT THIS MONTH" WAS A BUTTON THAT DID NOTHING ───────────────────
 {
   const o = {};
-  const { w, D } = boot((url, init) => {
-    if (/\/templates$/.test(url)) { o.tpl = JSON.parse(init.body); return json(200, { ok: true, id: 't1' }); }
-    return booksFetch({})(url, init);
-  });
+  const { w, D } = boot(booksFetch(o));
   await settle();
   await w.SelahActions.goBooks(); await settle();
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
@@ -1004,42 +1001,30 @@ section('🧭 FINDING YOUR WAY — the app was unnavigable, and that is a bug');
      tabs.map((t) => t.dataset.tab).join(',') === 'month,budget,plan,ahead');
   ok('...and "This month" is the one you land on', tabs[0].classList.contains('active'));
 
-  w.SelahActions.bkTab(D.querySelector('[data-tab="plan"]'));
-  ok('🔴 there is now a way to CREATE a template — the button is no longer a dead end',
-     D.getElementById('bk-pane-plan').hidden === false);
+  // 🔑 THE DEFAULTS ARE ONE TABLE — the plan and the price book unified.
+  w.SelahActions.bkTab(D.querySelector('[data-tab="plan"]')); await settle();
+  ok('the defaults tab is open', D.getElementById('bk-pane-plan').hidden === false);
 
-  // 🔑 The defaults are a TABLE, like every other screen that holds figures.
-  ok('the defaults are a table, with real columns',
-     [...D.querySelectorAll('#bk-pane-plan table.t thead th')].map((h) => h.textContent).join(',')
-       .includes('Usual amount'));
-  ok('...and each line is a ROW in it', D.querySelector('.tpl-line').tagName === 'TR');
+  ok('the Default values table has the right columns',
+     [...D.querySelectorAll('#defaults-table thead th')].map((h) => h.textContent).join(',')
+       === 'Item,In / out,Unit,Price,Updated,');
 
-  D.querySelector('.tpl-label').value = 'Salary';
-  D.querySelector('.tpl-amount').value = '2500000';
-  D.querySelector('.tpl-dir').value = 'in';
-  await w.SelahActions.tplSave(); await settle();
+  // add a default with a unit and a price
+  D.getElementById('df-item').value = 'Sugar';
+  D.getElementById('df-dir').value = 'out';
+  D.getElementById('df-unit').value = 'Kg';
+  D.getElementById('df-price').value = '1000';
+  await w.SelahActions.dfAdd(); await settle();
+  ok('🔑 adding a default records it with its unit, price and direction',
+     o.recorded && o.recorded.itemKey === 'Sugar' && o.recorded.amount === 1000 && o.recorded.unit === 'Kg' && o.recorded.direction === 'out');
 
-  ok('...and saving it reaches the server', o.tpl && o.tpl.lines[0].label === 'Salary');
-  ok('...as a MONTHLY cadence by default', o.tpl.cadence === 'monthly');
-  ok('the confirmation explains that drafts count in nothing',
-     /counted in nothing until you confirm/.test(D.getElementById('tpl-msg').textContent));
-}
-
-{
-  // 🔴 A quarterly template with no anchor must be REFUSED at the form.
-  const { w, D } = boot(booksFetch({}));
-  await settle();
-  await w.SelahActions.goBooks(); await settle();
-  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
-  w.SelahActions.bkTab(D.querySelector('[data-tab="plan"]'));
-
-  D.querySelector('.tpl-label').value = 'Rent';
-  D.querySelector('.tpl-amount').value = '2400000';
-  D.getElementById('tpl-cadence').value = 'quarterly';
-  await w.SelahActions.tplSave(); await settle();
-
-  ok('🔴 a QUARTERLY template with no start date is refused, in the form',
-     /will not assume January/.test(D.getElementById('tpl-msg').textContent));
+  // 🔑 a price may be BLANK — the default exists, waiting for an entry to fill it
+  D.getElementById('df-item').value = 'Rent';
+  D.getElementById('df-price').value = '';
+  D.getElementById('df-unit').value = '';
+  await w.SelahActions.dfAdd(); await settle();
+  ok('🔑 a default can be added with NO price yet (amount 0, unit blank)',
+     o.recorded.itemKey === 'Rent' && o.recorded.amount === 0);
 }
 
 {
@@ -1809,20 +1794,6 @@ section('🏷️  A CATEGORY BELONGS TO A DIRECTION — the dropdown must respec
   ok('a transfer has NO category — it moves money, it does not spend or earn it',
      D.getElementById('bk-cat').disabled === true);
 
-  // ── THE TEMPLATE (DEFAULTS) TABLE ─────────────────────────────────────────
-  w.SelahActions.bkTab(D.querySelector('[data-tab="plan"]'));
-  w.SelahActions.tplAddLine();
-  const row = D.querySelector('.tpl-line');
-  const rowCats = () => [...row.querySelector('.tpl-cat').options].map((o) => o.value).filter(Boolean);
-
-  ok('a default line starts as money OUT, with only out categories',
-     rowCats().join(',') === 'c2,c3');
-
-  const dirSel = row.querySelector('.tpl-dir');
-  dirSel.value = 'in';
-  dirSel.dispatchEvent(new w.Event('change', { bubbles: true }));
-  ok('🔑 flipping a default line to money IN refilters ITS OWN category dropdown',
-     rowCats().join(',') === 'c1');
 }
 
 
@@ -1896,20 +1867,19 @@ section('📆 PAST AND FUTURE MONTHS — walk backward to look, forward to plan'
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-section('📈 PRICES & VALUES — a number with a history, not just a number');
+section('📈 DEFAULT VALUES — history + adjust the price in place');
 {
   const V = require('../engine/values');
   const gas = V.track([
     { amount: 100000, asOf: '2026-05-15' },
     { amount: 105000, asOf: '2026-06-15' },
     { amount: 108000, asOf: '2026-07-15' },
-  ], { label: 'Gas' });
-
-  const o = { trackedItems: [ { key: 'gas', ...gas, pointIds: [
-    { id: 'p1', amount: 100000, asOf: '2026-05-15' },
-    { id: 'p2', amount: 105000, asOf: '2026-06-15' },
-    { id: 'p3', amount: 108000, asOf: '2026-07-15' },
-  ] } ] };
+  ], { label: 'Gas', unit: 'litre' });
+  const o = { trackedItems: [ { key: 'gas', direction: 'out', lastUpdated: '2026-07-15',
+    ...gas, pointIds: [
+      { id: 'p1', amount: 100000, asOf: '2026-05-15' },
+      { id: 'p2', amount: 105000, asOf: '2026-06-15' },
+      { id: 'p3', amount: 108000, asOf: '2026-07-15' } ] } ] };
 
   const { w, D } = boot(booksFetch(o));
   await settle();
@@ -1917,44 +1887,25 @@ section('📈 PRICES & VALUES — a number with a history, not just a number');
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
   w.SelahActions.bkTab(D.querySelector('[data-tab="plan"]')); await settle();
 
-  const box = D.getElementById('vt-list').textContent;
-  ok('🔑 the tracked item shows its CURRENT value', /108,000/.test(box));
-  ok('🔑 ...and the change since last time', /3,000|2\.9%/.test(box));
-  ok('...and a growth-per-month figure', /%\/month/.test(box));
-  ok('🔴 ...and a projection LABELLED a guess, not a promise',
-     /If the trend holds/.test(box) && /not a fact, and not money/.test(box));
-  ok('the full history is shown, every point removable',
-     /2026-05-15/.test(box) && !!D.querySelector('#vt-list [data-action="vtDel"]'));
+  const table = D.getElementById('defaults-table').textContent;
+  ok('the item shows in the defaults table with its current price', /Gas/.test(table) && /108,000/.test(table));
+  ok('...its unit', /litre/.test(table));
+  ok('...and when it was last updated', /2026-07-15/.test(table));
 
-  // recording a new value ADDS a point (does not overwrite)
-  D.getElementById('vt-item').value = 'Gas';
-  D.getElementById('vt-amount').value = '110000';
-  D.getElementById('vt-date').value = '2026-08-15';
-  await w.SelahActions.vtRecord(); await settle();
-  ok('🔑 recording a value POSTs a new dated point', o.recorded && o.recorded.amount === 110000 && o.recorded.asOf === '2026-08-15');
-  ok('...keyed by the item, so it joins the SAME history', o.recorded.itemKey === 'Gas');
-}
+  // 🔑 the history expands, with the trend and every point
+  w.SelahActions.dfHistory(D.querySelector('[data-action="dfHistory"]'));
+  const hist = D.getElementById('dfh-gas').textContent;
+  ok('🔑 the history shows the trend and past points', /2026-05-15/.test(hist));
 
-{
-  // two points only → no projection; the engine refuses and the UI shows why
-  const V = require('../engine/values');
-  const salary = V.track([
-    { amount: 1000000, asOf: '2026-06-01' },
-    { amount: 1200000, asOf: '2026-07-01' },
-  ], { label: 'Salary' });
-  const { w, D } = boot(booksFetch({ trackedItems: [{ key: 'salary', ...salary, pointIds: [
-    { id: 'p1', amount: 1000000, asOf: '2026-06-01' }, { id: 'p2', amount: 1200000, asOf: '2026-07-01' } ] }] }));
+  // 🔑 adjust the price IN PLACE → records a new dated point (today)
+  const cell = D.querySelector('.df-edit');
+  cell.value = '110000';
+  cell.dispatchEvent(new w.Event('change', { bubbles: true }));
   await settle();
-  await w.SelahActions.goBooks(); await settle();
-  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
-  w.SelahActions.bkTab(D.querySelector('[data-tab="plan"]')); await settle();
-
-  const box = D.getElementById('vt-list').textContent;
-  ok('🔑 a salary raise shows +20%', /\+20%/.test(box));
-  ok('🔴 ...but with only 2 points, NO projection is shown — it says why', /guess wearing a suit/.test(box));
+  ok('🔑 editing the price in the table records a new value point',
+     o.recorded && o.recorded.itemKey === 'gas' && o.recorded.amount === 110000);
+  ok('...as of today, so the change is tracked', o.recorded.asOf === new Date().toISOString().slice(0,10));
 }
-
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 section('🧮 UNIT PRICING — quantity in, total out; and the price book updates');

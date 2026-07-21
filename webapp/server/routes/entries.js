@@ -42,13 +42,17 @@ async function currentPrice(bookId, itemKey) {
 }
 
 /** Append a price point for an item, as of a date — the price book updating itself. */
-async function recordPricePoint(bookId, itemKey, label, unitPrice, unit, asOf, who) {
+async function recordPricePoint(bookId, itemKey, label, unitPrice, unit, asOf, who, direction) {
   const key = String(itemKey).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+  const dir = direction === 'in' ? 'in' : 'out';
   await db.query(
-    `INSERT INTO value_points (book_id, item_key, label_enc, unit_enc, amount_enc, as_of, recorded_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
-     ON CONFLICT (book_id, item_key, as_of) DO UPDATE SET amount_enc = EXCLUDED.amount_enc`,
-    [bookId, key, label ? encrypt(label) : null, unit ? encrypt(unit) : null, encrypt(Number(unitPrice)), asOf, who]);
+    `INSERT INTO value_points (book_id, item_key, label_enc, unit_enc, amount_enc, as_of, recorded_by, direction)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     ON CONFLICT (book_id, item_key, as_of) DO UPDATE SET
+       amount_enc = EXCLUDED.amount_enc,
+       -- 🔑 a later entry that carries a unit FILLS IN a default that had none.
+       unit_enc = COALESCE(EXCLUDED.unit_enc, value_points.unit_enc)`,
+    [bookId, key, label ? encrypt(label) : null, unit ? encrypt(unit) : null, encrypt(Number(unitPrice)), asOf, who, dir]);
 }
 
 const guard = async (req, res) => {
@@ -222,7 +226,7 @@ router.post('/:bookId/entries', async (req, res, next) => {
       // 🔑 new item, or a moved price → record it. The default updates; the values
       //    tab shows the movement. Same price = nothing recorded (no noise).
       if (r.recordPrice != null && itemKey) {
-        await recordPricePoint(req.params.bookId, itemKey, itemLabel, r.recordPrice, r.unit, when, req.taxpayerId);
+        await recordPricePoint(req.params.bookId, itemKey, itemLabel, r.recordPrice, r.unit, when, req.taxpayerId, direction);
       }
     }
 
@@ -443,20 +447,22 @@ router.delete('/:bookId/entries/:id', async (req, res, next) => {
 router.post('/:bookId/values', async (req, res, next) => {
   try {
     if (!await guard(req, res)) return;
-    const { itemKey, label, amount, asOf, unit, note } = req.body || {};
+    const { itemKey, label, amount, asOf, unit, note, direction } = req.body || {};
     if (!itemKey || amount == null || !/^\d{4}-\d{2}-\d{2}$/.test(String(asOf || ''))) {
       return res.status(400).json({ ok: false, error: 'BAD_INPUT',
         headline: 'A value needs an item, an amount, and the date it applied.' });
     }
     const key = String(itemKey).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
     const { rows } = await db.query(
-      `INSERT INTO value_points (book_id, item_key, label_enc, unit_enc, amount_enc, as_of, note_enc, recorded_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO value_points (book_id, item_key, label_enc, unit_enc, amount_enc, as_of, note_enc, recorded_by, direction)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (book_id, item_key, as_of)
-       DO UPDATE SET amount_enc = EXCLUDED.amount_enc, note_enc = EXCLUDED.note_enc
+       DO UPDATE SET amount_enc = EXCLUDED.amount_enc, note_enc = EXCLUDED.note_enc,
+                     unit_enc = COALESCE(EXCLUDED.unit_enc, value_points.unit_enc)
        RETURNING id`,
       [req.params.bookId, key, label ? encrypt(label) : null, unit ? encrypt(unit) : null,
-       encrypt(Number(amount)), asOf, note ? encrypt(note) : null, req.taxpayerId]
+       encrypt(Number(amount)), asOf, note ? encrypt(note) : null, req.taxpayerId,
+       direction === 'in' ? 'in' : 'out']
     );
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'value_points', entityId: rows[0].id, req });
     res.json({ ok: true, id: rows[0].id, itemKey: key });
@@ -473,13 +479,21 @@ router.get('/:bookId/values', async (req, res, next) => {
     );
     const byItem = {};
     for (const r of rows) {
-      const it = byItem[r.item_key] || (byItem[r.item_key] = { key: r.item_key, label: str(r.label_enc), unit: str(r.unit_enc), points: [] });
+      const it = byItem[r.item_key] || (byItem[r.item_key] = {
+        key: r.item_key, label: str(r.label_enc), unit: str(r.unit_enc),
+        direction: r.direction || 'out', points: [] });
+      // the newest non-null unit / direction wins as the item's current facts
+      if (str(r.unit_enc)) it.unit = str(r.unit_enc);
+      it.direction = r.direction || it.direction;
       it.points.push({ id: r.id, amount: num(r.amount_enc), asOf: iso(r.as_of) });
     }
     const items = Object.values(byItem).map((it) => ({
       key: it.key,
+      direction: it.direction,
+      unit: it.unit,
+      lastUpdated: it.points.length ? it.points[it.points.length - 1].asOf : null,
       ...VAL.track(it.points, { label: it.label || it.key, unit: it.unit }),
-      pointIds: it.points,   // so a wrong entry can be corrected/removed
+      pointIds: it.points,
     }));
     res.json({ ok: true, items });
   } catch (e) { next(e); }
@@ -492,6 +506,48 @@ router.delete('/:bookId/values/:id', async (req, res, next) => {
     if (!rowCount) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'DELETE', entity: 'value_points', entityId: req.params.id, req });
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/**
+ * Draft this month from the DEFAULT VALUES. Each default (an item with a price and a
+ * direction) becomes an EXPECTED entry for the current month — a draft, counted in
+ * nothing until confirmed. Idempotent: a default already staged this month is skipped.
+ */
+router.post('/:bookId/stage-defaults', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    const asOf = req.body?.asOf || today();
+    const from = asOf.slice(0, 7) + '-01';
+    const last = new Date(Date.UTC(Number(from.slice(0,4)), Number(from.slice(5,7)), 0)).getUTCDate();
+    const to = asOf.slice(0, 7) + '-' + String(last).padStart(2, '0');
+
+    // the defaults (latest value point per item)
+    const { rows: vp } = await db.query('SELECT * FROM value_points WHERE book_id = $1 ORDER BY item_key, as_of', [req.params.bookId]);
+    const defaults = {};
+    for (const r of vp) defaults[r.item_key] = { key: r.item_key, label: str(r.label_enc) || r.item_key,
+      amount: num(r.amount_enc), unit: str(r.unit_enc), direction: r.direction || 'out' };
+
+    // what is already staged this month (dedupe by item key)
+    const { rows: existing } = await db.query(
+      "SELECT label_enc FROM entries WHERE book_id = $1 AND status = 'expected' AND period_start = $2", [req.params.bookId, from]);
+    const staged = new Set(existing.map((e) => String(str(e.label_enc) || '').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40)));
+
+    let n = 0;
+    for (const d of Object.values(defaults)) {
+      if (staged.has(d.key)) continue;
+      await db.query(
+        `INSERT INTO entries (book_id, author_id, direction, label_enc, currency, expected_enc, actual_enc,
+                              status, period_start, unit, unit_price_enc)
+         VALUES ($1,$2,$3,$4,'UGX',$5,NULL,'expected',$6,$7,$8)`,
+        [req.params.bookId, req.taxpayerId, d.direction, encrypt(d.label), encrypt(d.amount), from,
+         d.unit || null, encrypt(d.amount)]);
+      n++;
+    }
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'entries', req });
+    res.json({ ok: true, staged: n, period: { from, to },
+      note: n ? `${n} default${n===1?'':'s'} drafted for this month. They are counted in nothing until you confirm them.`
+              : 'Everything from your defaults is already drafted for this month.' });
   } catch (e) { next(e); }
 });
 

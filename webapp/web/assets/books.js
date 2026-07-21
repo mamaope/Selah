@@ -147,15 +147,6 @@
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // A quarterly/annual template MUST carry an anchor. Show the field when it matters.
-  document.addEventListener('change', (e) => {
-    if (e.target && e.target.id === 'tpl-cadence') {
-      const needs = ['quarterly', 'annual'].includes(e.target.value);
-      $('tpl-anchor').hidden = !needs;
-      $('tpl-anchor-hint').hidden = !needs;
-    }
-  });
-
   function renderMonthNav() {
     const st = monthState();
     $('bk-month-label').textContent = monthLabel();
@@ -724,86 +715,99 @@
   //    history into: current value, change since last, growth per month, and — with
   //    enough points — a projection that SAYS it is a guess. We just display it.
   // ═══════════════════════════════════════════════════════════════════════════
-  async function renderValues() {
-    const box = $('vt-list');
-    if (!box) return;
-    if (!$('vt-date').value) $('vt-date').value = today();
-
+  // ═══════════════════════════════════════════════════════════════════════════
+  // THE DEFAULT VALUES TABLE — the plan and the price book, unified.
+  //
+  // Every regular item, income or expense, with its unit, its current price, and
+  // when that price last changed. Editing a price records a new point (the change is
+  // tracked). Adding one creates the default. A unit can be blank; an entry fills it.
+  // ═══════════════════════════════════════════════════════════════════════════
+  let defaults = [];
+  async function renderDefaults() {
+    const body = $('defaults-body');
+    if (!body) return;
     const r = await API.trackedValues(current.id);
     if (!handle(r)) return;
-    if (!r.ok) { box.innerHTML = ''; return; }
+    defaults = (r.ok && r.items) || [];
 
-    if (!r.items.length) {
-      box.innerHTML = '<p class="src">Nothing tracked yet. Record a value above — then record it again when it changes, and the trend appears here.</p>';
+    if (!defaults.length) {
+      body.innerHTML = '<tr><td colspan="6" class="muted">No defaults yet. Add your salary, rent, and the things you buy often — below.</td></tr>';
       return;
     }
 
-    const arrow = (d) => d === 'up' ? '<span style="color:var(--red-600)">▲</span>'
-                       : d === 'down' ? '<span style="color:var(--emerald-700)">▼</span>'
-                       : '<span class="muted">■</span>';
+    const dirPill = (d) => d === 'in'
+      ? '<span class="pill ok">in</span>' : '<span class="pill">out</span>';
 
-    box.innerHTML = r.items.map((it) => (
-      '<div class="card" style="background:var(--surface-1)">' +
-        '<div class="cardhead">' +
-          '<h3>' + esc(it.label || it.key) + ' ' + (it.direction && it.direction !== 'first' ? arrow(it.direction) : '') + '</h3>' +
-          '<strong class="num">' + fmt(it.current.amount) + '</strong>' +
-        '</div>' +
-
-        // the human one-liner the engine already wrote
-        '<p class="hint" style="margin-top:0">' + esc(it.says) + '</p>' +
-
-        // change since last + growth
-        (it.sinceLast
-          ? '<div class="row" style="gap:1rem;font-size:.85rem">' +
-              '<span>Since ' + esc(it.sinceLast.fromOn) + ': <strong class="num">' +
-                (it.sinceLast.abs >= 0 ? '+' : '') + fmt(it.sinceLast.abs) + '</strong>' +
-                (it.sinceLast.pct != null ? ' (' + (it.sinceLast.pct >= 0 ? '+' : '') + it.sinceLast.pct + '%)' : '') + '</span>' +
-              (it.monthlyGrowthPct != null ? '<span class="muted">~' + it.monthlyGrowthPct + '%/month</span>' : '') +
-            '</div>'
-          : '') +
-
-        // 🔴 the projection — a GUESS, labelled as one
-        (it.projection && it.projection.nextMonth
-          ? '<div class="card ask" style="margin-top:.6rem;padding:.6rem .8rem">' +
-              'If the trend holds: <strong class="num">' + fmt(it.projection.nextMonth) + '</strong> next month, ' +
-              '<strong class="num">' + fmt(it.projection.inSixMonths) + '</strong> in six. ' +
-              '<span class="src">' + esc(it.projection.thisIsAGuess) + '</span>' +
-            '</div>'
-          : it.projection && it.projection.whyNot
-            ? '<p class="src">' + esc(it.projection.whyNot) + '</p>'
-            : '') +
-
-        // the history — every point, newest first, each removable
-        '<div class="tablewrap"><table class="t" style="margin-top:.4rem"><thead><tr>' +
-          '<th>As of</th><th class="num">Value</th><th></th>' +
-        '</tr></thead><tbody>' +
-        [...it.pointIds].reverse().map((pt) => (
-          '<tr><td>' + esc(pt.asOf) + '</td><td class="num">' + fmt(pt.amount) + '</td>' +
-          '<td><button class="link" data-action="vtDel" data-id="' + esc(pt.id) + '">remove</button></td></tr>'
-        )).join('') +
-        '</tbody></table></div>' +
-      '</div>'
-    )).join('');
+    body.innerHTML = defaults.map((it) => {
+      const cur = it.current ? it.current.amount : 0;
+      const moved = it.sinceLast ? (it.direction === 'in'
+        ? (it.sinceLast.abs >= 0 ? ' ▲' : ' ▼')
+        : (it.sinceLast.abs > 0 ? ' <span style="color:var(--red-600)">▲</span>' : it.sinceLast.abs < 0 ? ' <span style="color:var(--emerald-700)">▼</span>' : '')) : '';
+      return '<tr>' +
+        '<td class="wide">' + esc(it.label || it.key) + '</td>' +
+        '<td>' + dirPill(it.direction) + '</td>' +
+        '<td>' + esc(it.unit || '—') + '</td>' +
+        '<td class="num"><input type="number" class="df-edit" data-key="' + esc(it.key) + '" data-dir="' + esc(it.direction) + '" data-unit="' + esc(it.unit || '') + '" value="' + cur + '" style="max-width:8rem">' + moved + '</td>' +
+        '<td>' + esc(it.lastUpdated || '—') + '</td>' +
+        '<td><button class="link" data-action="dfHistory" data-key="' + esc(it.key) + '">history</button></td>' +
+      '</tr>' +
+      // an expandable history row, hidden until asked
+      '<tr id="dfh-' + esc(it.key) + '" hidden><td colspan="6">' + historyOf(it) + '</td></tr>';
+    }).join('');
+    await loadPriceBook();   // keep the Record-sheet auto-fill in sync
   }
 
-  A.vtRecord = async () => {
-    const item = $('vt-item').value.trim();
-    const amount = Number($('vt-amount').value || 0);
-    const asOf = $('vt-date').value || today();
-    if (!item || !(amount > 0)) { $('vt-msg').textContent = 'Give it a name and a value.'; return; }
+  function historyOf(it) {
+    if (!it.pointIds || it.pointIds.length < 2) return '<span class="src">One value so far — record it again when it changes to see the trend.</span>';
+    let h = '<div class="src">' + esc(it.says) + '</div>';
+    if (it.projection && it.projection.nextMonth) {
+      h += '<div class="src">If the trend holds: ' + fmt(it.projection.nextMonth) + ' next month. ' + esc(it.projection.thisIsAGuess) + '</div>';
+    }
+    h += '<div class="tablewrap"><table class="t"><thead><tr><th>As of</th><th class="num">Value</th><th></th></tr></thead><tbody>' +
+      [...it.pointIds].reverse().map((pt) => '<tr><td>' + esc(pt.asOf) + '</td><td class="num">' + fmt(pt.amount) +
+        '</td><td><button class="link" data-action="dfDelPoint" data-id="' + esc(pt.id) + '">remove</button></td></tr>').join('') +
+      '</tbody></table></div>';
+    return h;
+  }
 
-    const r = await API.recordValue(current.id, { itemKey: item, label: item, amount, asOf });
+  A.dfHistory = (el) => { const row = $('dfh-' + el.dataset.key); if (row) row.hidden = !row.hidden; };
+
+  // 🔑 EDIT A PRICE IN PLACE → records a new dated point (today). The change is tracked.
+  document.addEventListener('change', async (e) => {
+    if (!e.target || !e.target.classList.contains('df-edit')) return;
+    const el = e.target;
+    const amount = Number(el.value || 0);
+    if (!(amount >= 0)) return;
+    const r = await API.recordValue(current.id, {
+      itemKey: el.dataset.key, label: el.dataset.key, amount, asOf: today(),
+      unit: el.dataset.unit || undefined, direction: el.dataset.dir,
+    });
     if (!handle(r)) return;
-    if (!r.ok) { $('vt-msg').textContent = (r.headline || 'That did not work.'); return; }
-    $('vt-msg').innerHTML = '<span class="saved">✓ Recorded.</span> Record it again when it changes.';
-    $('vt-amount').value = '';
-    await renderValues();
+    await renderDefaults();
+  });
+
+  A.dfAdd = async () => {
+    const item = $('df-item').value.trim();
+    if (!item) { $('df-msg').textContent = 'Give the item a name.'; return; }
+    const priceRaw = $('df-price').value;
+    // 🔑 a price may be BLANK — the default exists, waiting for the first entry to set it.
+    const body = {
+      itemKey: item, label: item, direction: $('df-dir').value,
+      unit: $('df-unit').value.trim() || undefined, asOf: today(),
+      amount: priceRaw === '' ? 0 : Number(priceRaw),
+    };
+    const r = await API.recordValue(current.id, body);
+    if (!handle(r)) return;
+    if (!r.ok) { $('df-msg').textContent = r.headline || 'That did not work.'; return; }
+    $('df-msg').innerHTML = '<span class="saved">✓ Added.</span>';
+    $('df-item').value = ''; $('df-price').value = ''; $('df-unit').value = '';
+    await renderDefaults();
   };
 
-  A.vtDel = async (el) => {
+  A.dfDelPoint = async (el) => {
     const r = await API.delValuePoint(current.id, el.dataset.id);
     if (!handle(r)) return;
-    await renderValues();
+    await renderDefaults();
   };
 
   A.bkDelEntry = async (el) => {
@@ -820,9 +824,10 @@
 
   // ═══════════════════════════════════════════════════════════════════════════
   A.bkStage = async () => {
-    const r = await API.stage(current.id);
+    const r = await API.stageDefaults(current.id);
     if (!handle(r)) return;
-    if (!r.ok) return problem('bk-drafts', r);
+    if (!r.ok) { $('df-msg').textContent = r.headline || 'That did not work.'; return; }
+    $('df-msg').innerHTML = '<span class="saved">✓</span> ' + esc(r.note || 'Drafted.');
     await refresh();
   };
 
@@ -1032,36 +1037,10 @@
     document.querySelectorAll('.tabs .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === want));
     if (want === 'ahead') A.bkForecast();
     if (want === 'budget') fillBudgetForm();
-    if (want === 'plan' && !$('tpl-lines').children.length) A.tplAddLine();
-    if (want === 'plan') renderValues();
+    if (want === 'plan') renderDefaults();
   };
 
   // ── MY DEFAULTS — the template. "Set it once." ─────────────────────────────
-  // 🔑 The defaults are a TABLE, like everything else that holds figures. A stack of
-  //    inline form rows made a person read every line to find the amount they wanted
-  //    to change; a column makes them scan down it.
-  A.tplAddLine = () => {
-    const row = document.createElement('tr');
-    row.className = 'tpl-line';
-    row.innerHTML =
-      '<td><select class="tpl-dir"><option value="out" selected>Money out</option><option value="in">Money in</option></select></td>' +
-      '<td class="wide"><input type="text" class="tpl-label" placeholder="Salary, Rent, School fees" style="width:100%"></td>' +
-      '<td class="num"><input type="number" class="tpl-amount" placeholder="0" style="max-width:9rem"></td>' +
-      '<td><select class="tpl-cat">' + catsFor('out') + '</select></td>' +
-      '<td><button class="link tpl-del">remove</button></td>';
-    row.querySelector('.tpl-del').addEventListener('click', () => row.remove());
-    // 🔑 Each row's category list tracks its OWN in/out. Change the line to "money
-    //    in" and its category dropdown drops every money-out option.
-    const dirSel = row.querySelector('.tpl-dir');
-    const catSel = row.querySelector('.tpl-cat');
-    dirSel.addEventListener('change', () => {
-      const was = catSel.value;
-      catSel.innerHTML = catsFor(dirSel.value);
-      if (was && [...catSel.options].some((o) => o.value === was)) catSel.value = was;
-      else catSel.value = '';
-    });
-    $('tpl-lines').appendChild(row);
-  };
 
   /** Categories for one direction only. `in` money never lists `out` categories. */
   const catsFor = (direction, byKey) =>
@@ -1083,37 +1062,6 @@
     else el.value = '';                                      // it belonged to the OTHER direction — drop it
   }
 
-  A.tplSave = async () => {
-    const cadence = $('tpl-cadence').value;
-    const lines = [...document.querySelectorAll('.tpl-line')].map((r) => ({
-      direction: r.querySelector('.tpl-dir').value,
-      label: r.querySelector('.tpl-label').value.trim(),
-      amount: Number(r.querySelector('.tpl-amount').value || 0),
-      categoryId: r.querySelector('.tpl-cat').value || null,
-    })).filter((l) => l.label && l.amount > 0);
-
-    if (!lines.length) {
-      $('tpl-msg').textContent = 'Add at least one line — what comes in, or what goes out. An empty month is not a budget.';
-      return;
-    }
-
-    const body = { cadence, lines };
-    // 🔴 A quarter or a year has no natural start. We do NOT assume January.
-    if (cadence === 'quarterly' || cadence === 'annual') {
-      const anchor = $('tpl-anchor').value;
-      if (!anchor) {
-        $('tpl-msg').textContent = 'Tell us when your ' + (cadence === 'quarterly' ? 'quarter' : 'year') +
-          ' starts. We will not assume January — if we assumed wrong, every date here would be up to three months out, and it would look perfectly reasonable.';
-        return;
-      }
-      body.anchor = anchor;
-    }
-
-    const r = await API.addTemplate(current.id, body);
-    if (!handle(r)) return;
-    if (!r.ok) { $('tpl-msg').textContent = (r.headline || 'That did not work.') + ' ' + (r.why || []).join(' '); return; }
-    $('tpl-msg').textContent = 'Saved. Now draft this month from it — the lines will appear as drafts, counted in nothing until you confirm them.';
-  };
 
 
   // ═══════════════════════════════════════════════════════════════════════════

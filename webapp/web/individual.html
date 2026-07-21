@@ -357,66 +357,49 @@
 
     <!-- ══ MY DEFAULTS — the template. This is "set it once". ═══════════════ -->
     <div id="bk-pane-plan" class="stack" hidden>
-      <div class="card">
-        <h3>What does a normal month look like?</h3>
-        <p class="muted">Set your salary, your rent, your regular bills — once. Each month Selah will put them
-          on the screen for you, ready, as <strong>drafts</strong>. Nothing counts until you confirm it arrived.</p>
-
-        <div class="tablewrap">
-          <table class="t">
-            <thead><tr>
-              <th>In / out</th>
-              <th>What</th>
-              <th class="num">Usual amount</th>
-              <th>Category</th>
-              <th></th>
-            </tr></thead>
-            <tbody id="tpl-lines"></tbody>
-          </table>
-        </div>
-        <button class="ghost" data-action="tplAddLine">+ Add a line</button>
-
-        <div class="row" style="gap:.5rem;margin-top:.8rem;flex-wrap:wrap">
-          <select id="tpl-cadence">
-            <option value="monthly">Every month</option>
-            <option value="weekly">Every week</option>
-            <option value="quarterly">Every quarter</option>
-            <option value="annual">Every year</option>
-          </select>
-          <input type="date" id="tpl-anchor" hidden>
-          <button class="primary" data-action="tplSave">Save my defaults</button>
-        </div>
-        <p class="hint" id="tpl-anchor-hint" hidden>A quarter or a year has no natural start. Tell us when yours begins — we will not assume January.</p>
-        <p id="tpl-msg" class="hint"></p>
-      </div>
-
-      <!-- ══ PRICES & VALUES — track how a number MOVES over time ═══════════════
-           🔑 The founder's ask: gas is 100,000 today; next month 105,000. Salary
-           was 1,000,000; then 1,200,000. Recording a new value ADDS a dated point,
-           never overwrites — the change is the data, and it shows growth. -->
+      <!-- ══ DEFAULT VALUES — the plan and the price book, in one table ═══════════
+           🔑 Every item you earn or spend regularly, with its unit, its price, and
+           when that price was last updated. Adjust a price here and the change is
+           tracked. Add a new one, or leave the unit blank and let an entry fill it. -->
       <div class="card">
         <div class="cardhead">
-          <h3>Prices &amp; values over time</h3>
+          <h3>Default values</h3>
+          <button class="ghost" data-action="bkStage">Draft this month from these</button>
         </div>
-        <p class="muted">Track how a price or a value moves — a gas refill, your salary, the rent.
-          Each time it changes, record the new value <strong>as of that date</strong>. Selah keeps the
-          history and shows you the trend, the growth, and where it may be heading.</p>
+        <p class="muted">Your regular income and expenses, each with a unit and a price. Change a price and
+          Selah records the change. These also fill in the totals when you record an entry by quantity.</p>
 
-        <div class="row" style="gap:.5rem;flex-wrap:wrap;margin-top:.6rem">
-          <input type="text" id="vt-item" placeholder="What (Gas, Salary, Rent)" style="flex:1;min-width:9rem">
-          <input type="number" id="vt-amount" placeholder="Value now">
-          <input type="date" id="vt-date">
-          <button class="primary" data-action="vtRecord">Record</button>
+        <div class="tablewrap">
+          <table class="t" id="defaults-table">
+            <thead><tr>
+              <th>Item</th>
+              <th>In / out</th>
+              <th>Unit</th>
+              <th class="num">Price</th>
+              <th>Updated</th>
+              <th></th>
+            </tr></thead>
+            <tbody id="defaults-body"></tbody>
+          </table>
         </div>
-        <p class="hint">Recording the same item again — with today's price — is how the history builds. To fix a mistake, remove a point below.</p>
-        <p id="vt-msg" class="hint"></p>
 
-        <div id="vt-list" class="stack" style="margin-top:.8rem"></div>
-      </div>
-
-      <div class="card">
-        <button class="primary" data-action="bkStage">Draft this month from my defaults</button>
-        <p class="hint">Puts this month&#39;s expected lines on your screen. They are counted in nothing until you confirm them.</p>
+        <!-- add a new default -->
+        <div class="row" style="gap:.5rem;flex-wrap:wrap;margin-top:.6rem;align-items:flex-end">
+          <div><label>Item</label><input type="text" id="df-item" placeholder="Sugar, salary, rent"></div>
+          <div><label>In / out</label><select id="df-dir"><option value="out">Money out</option><option value="in">Money in</option></select></div>
+          <div><label>Unit</label>
+            <input type="text" id="df-unit" list="unit-list" placeholder="(optional)">
+            <datalist id="unit-list">
+              <option value="Kg"><option value="g"><option value="litre"><option value="ml">
+              <option value="piece"><option value="dozen"><option value="refill"><option value="bag">
+              <option value="month"><option value="term"><option value="trip"><option value="hour">
+            </datalist>
+          </div>
+          <div><label>Price</label><input type="number" id="df-price" placeholder="(can be blank)"></div>
+          <button class="primary" data-action="dfAdd">Add default</button>
+        </div>
+        <p class="hint">A value with no price yet can be added — leave it blank and it fills in the first time you record an entry for it.</p>
+        <p id="df-msg" class="hint"></p>
       </div>
     </div>
 

@@ -147,6 +147,7 @@
     period:      (b, from, to)          => call('GET',  '/entries/' + b + '/period?from=' + from + '&to=' + to),
     addTemplate: (b, t)                 => call('POST', '/entries/' + b + '/templates', t),
     stage:       (b)                    => call('POST', '/entries/' + b + '/stage'),
+    stageDefaults: (b)                  => call('POST', '/entries/' + b + '/stage-defaults'),
     addEntry:    (b, e)                 => call('POST', '/entries/' + b + '/entries', e),
     confirm:     (b, id, body)          => call('POST', '/entries/' + b + '/entries/' + id + '/confirm', body || {}),
     didNotArrive:(b, id, note)          => call('POST', '/entries/' + b + '/entries/' + id + '/did-not-arrive', { note }),
