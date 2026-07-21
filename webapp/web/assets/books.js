@@ -1315,6 +1315,7 @@
             '<div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap">' +
               '<div><label>Paid (total)</label><input type="number" id="paid-' + esc(it.id) + '" placeholder="' + (it.estimate != null ? fmt(it.estimate) : 'amount') + '"></div>' +
               '<div><label>How many' + (it.unit ? ' (' + esc(it.unit) + ')' : '') + '</label><input type="number" id="qty-' + esc(it.id) + '" value="' + esc(it.quantity) + '"></div>' +
+              '<div><label>Category</label><select id="cat-' + esc(it.id) + '">' + catsFor('out', true) + '</select></div>' +
               '<div><label>From account</label><select id="acct-' + esc(it.id) + '">' + acctOpts() + '</select></div>' +
               '<button class="primary" data-action="bkShopDone" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Bought</button>' +
             '</div>' +
@@ -1429,8 +1430,10 @@
     const qtyRaw = $('qty-' + id).value;
     const accountId = $('acct-' + id).value;
     if (!accountId) { if (msg) msg.textContent = 'Say which account you paid from.'; return; }
+    const catEl = $('cat-' + id);
     const r = await API.shopDone(current.id, lid, id, {
       accountId,
+      category: catEl && catEl.value ? catEl.value : undefined,
       actualAmount: paidRaw === '' ? undefined : Number(paidRaw),
       quantity: qtyRaw === '' ? undefined : Number(qtyRaw),
     });

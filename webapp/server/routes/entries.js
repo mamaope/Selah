@@ -625,7 +625,7 @@ router.post('/:bookId/shopping/:listId/items/:id/done', async (req, res, next) =
     if (!it.length) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
     const item = it[0];
 
-    const { accountId, actualAmount, quantity } = req.body || {};
+    const { accountId, actualAmount, quantity, category } = req.body || {};
     if (!accountId) {
       return res.status(400).json({ ok: false, error: 'ACCOUNT_REQUIRED',
         headline: 'Which account did you pay from?',
@@ -639,6 +639,7 @@ router.post('/:bookId/shopping/:listId/items/:id/done', async (req, res, next) =
       quantity: quantity != null ? quantity : (item.quantity != null ? Number(item.quantity) : undefined),
       unit: item.unit || undefined,
       amount: actualAmount,                      // 🔑 what you actually paid — this is what the price book learns
+      category: category || undefined,           // the category chosen when checking it off the list
       accountId,
       occurredOn: today(),
     });

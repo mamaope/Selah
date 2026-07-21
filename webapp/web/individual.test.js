@@ -2024,11 +2024,14 @@ section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an
   await w.SelahActions.bkShopDone({ dataset: { list: 'sl1', id: 'i1' } }); await settle();
   ok('🔴 done with no account is refused in the UI', /which account/i.test(D.getElementById('done-msg-i1').textContent));
 
-  // choose account + pay → records the purchase
+  // choose account + category + pay → records the purchase
+  ok('the paid form offers a category picker', !!D.getElementById('cat-i1'));
   D.getElementById('paid-i1').value = '2100';
   D.getElementById('acct-i1').value = 'a1';
+  D.getElementById('cat-i1').value = 'food';
   await w.SelahActions.bkShopDone({ dataset: { list: 'sl1', id: 'i1' } }); await settle();
   ok('🔑 buying POSTs the account and the actual amount', o.shopDone && o.shopDone.accountId === 'a1' && o.shopDone.actualAmount === 2100);
+  ok('🔑 ...and the category chosen at the till', o.shopDone && o.shopDone.category === 'food');
 }
 
 // ── UNDO A PURCHASE, and DELETE A LIST ─────────────────────────────────────
