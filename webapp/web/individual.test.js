@@ -1990,7 +1990,7 @@ section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an
   ok('...it summarises progress instead', /0 of 2 bought/.test(index));
 
   // 🔑 DETAIL: open the list → now we see its items
-  await w.SelahActions.bkOpenList(D.querySelector('[data-action="bkOpenList"]')); await settle();
+  await w.SelahActions.bkOpenList({ dataset: { id: 'sl1' } }); await settle();
   const detail = D.getElementById('shopping-lists').textContent;
   ok('opening a list shows its items', /Sugar/.test(detail) && /Soap/.test(detail));
   ok('🔑 the priced item shows an estimate (2 × 1,000 = 2,000)', /2,000/.test(detail));
@@ -2047,7 +2047,7 @@ section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an
   await w.SelahActions.goBooks(); await settle();
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
   await w.SelahActions.bkTab({ dataset: { tab: 'shopping' } }); await settle();
-  await w.SelahActions.bkOpenList(D.querySelector('[data-action="bkOpenList"]')); await settle();
+  await w.SelahActions.bkOpenList({ dataset: { id: 'sl1' } }); await settle();
 
   // 🔑 bought items are HIDDEN by default — the list is what is still to buy
   //    (the summary line still says "spent 2,100"; it is the ROWS that hide)
@@ -2087,8 +2087,8 @@ section('🧾 LEDGER — most recent first, and today\'s newest above today\'s o
   ok('...and yesterday sits below today', labels.indexOf('Yesterday') > labels.indexOf('Newer today'));
 }
 
-// ── THE STANDING FORECAST — recurring buys that are due ────────────────────
-section('🔮 SHOPPING FORECAST — what your history says you are likely due to buy');
+// ── THE "FORECASTED ITEMS" LIST — recurring buys that are due ───────────────
+section('🔮 SHOPPING FORECAST — a "Forecasted Items" list, built from your history');
 {
   const S = require('../engine/shopping');
   // sugar bought 5×, ~every 12 days, last 13 days ago → overdue and priced
@@ -2108,15 +2108,22 @@ section('🔮 SHOPPING FORECAST — what your history says you are likely due to
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
   await w.SelahActions.bkTab({ dataset: { tab: 'shopping' } }); await settle();
 
-  const pane = D.getElementById('shopping-lists').textContent;
-  ok('🔑 the forecast card is always on the Shopping tab', /Likely due/.test(pane));
-  ok('🔑 it names the recurring item that is due', /Sugar/.test(pane));
-  ok('🔑 it shows the estimated cost from the price book (2 × 1,000)', /2,000/.test(pane));
-  ok('🔑 it shows its working — how often, how long since', /Bought 5 times/.test(pane));
-  ok('🔴 it says out loud that it is a guess, not a list you must buy', /a guess, not a list you must buy/.test(pane));
+  // 🔑 it appears as a LIST in the index, named "Forecasted Items"
+  const index = D.getElementById('shopping-lists').textContent;
+  ok('🔑 "Forecasted Items" is a list in the index', /Forecasted Items/.test(index));
+  ok('...the index summarises how many are due, not the items themselves', /1 likely due/.test(index) && !/Bought 5 times/.test(index));
+
+  // 🔑 open it → every forecast item is listed
+  await w.SelahActions.bkOpenList({ dataset: { id: '__forecast__' } }); await settle();
+  const detail = D.getElementById('shopping-lists').textContent;
+  ok('opening the list shows the forecast items', /Sugar/.test(detail));
+  ok('🔑 it shows the estimated cost from the price book (2 × 1,000)', /2,000/.test(detail));
+  ok('🔑 it shows its working — how often, how long since', /Bought 5 times/.test(detail));
+  ok('🔴 it says out loud that it is a guess, not a list you must buy', /a guess, not a list you must buy/.test(detail));
+  ok('there is a way back to all lists', !!D.querySelector('[data-action="bkCloseList"]'));
 }
 
-// an empty history forecasts nothing, and says why — no crash, no invented list
+// an empty history still shows the list, but it forecasts nothing and says why
 {
   const S = require('../engine/shopping');
   const forecast = S.forecastDue([], { asOf: '2026-07-15' });
@@ -2125,7 +2132,10 @@ section('🔮 SHOPPING FORECAST — what your history says you are likely due to
   await w.SelahActions.goBooks(); await settle();
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
   await w.SelahActions.bkTab({ dataset: { tab: 'shopping' } }); await settle();
-  ok('🔴 with no history the forecast is honest and empty, not invented',
+  ok('🔮 the "Forecasted Items" list is present even with no history', /Forecasted Items/.test(D.getElementById('shopping-lists').textContent));
+  ok('...and says nothing is due', /nothing due right now/.test(D.getElementById('shopping-lists').textContent));
+  await w.SelahActions.bkOpenList({ dataset: { id: '__forecast__' } }); await settle();
+  ok('🔴 opened with no history it is honest and empty, not invented',
      /Not enough history yet to forecast/.test(D.getElementById('shopping-lists').textContent));
 }
 

@@ -1262,32 +1262,47 @@
     '<option value="">— which account? —</option>' +
     accts.map((a) => '<option value="' + esc(a.id) + '">' + esc(a.name) + (a.scope === 'book' ? ' (shared)' : '') + '</option>').join('');
 
+  const FORECAST_ID = '__forecast__';   // the synthetic, read-only "Forecasted Items" list
+
   async function renderShopping() {
     const box = $('shopping-lists'); if (!box) return;
     const r = await API.shopping(current.id);
     if (!handle(r)) return;
     const lists = (r.ok && r.lists) || [];
+    const forecast = r.forecast || { items: [], note: '' };
 
-    // a list that was open but is now gone (deleted) falls back to the index
+    // 🔑 the forecast is a list of its own — "Forecasted Items" — read-only and
+    //    rebuilt from history each open. Handle it before the real-list lookup.
+    if (shopOpenList === FORECAST_ID) { box.innerHTML = renderForecastDetail(forecast); return; }
+
+    // a real list that was open but is now gone (deleted) falls back to the index
     const open = shopOpenList && lists.find((l) => l.id === shopOpenList);
     if (open) { box.innerHTML = renderDetail(open); return; }
     shopOpenList = null;
 
-    // 🔑 the always-on forecast sits at the top of the index, rebuilt every open
-    const forecast = renderForecast(r.forecast);
-    const listsHtml = lists.length
-      ? '<div class="tablewrap"><table class="t">' +
-          '<thead><tr><th>List</th><th>Progress</th><th class="num">Still to buy</th><th></th></tr></thead>' +
-          '<tbody>' + lists.map(renderIndexRow).join('') + '</tbody>' +
-        '</table></div>'
-      : '<p class="muted">No lists yet. Add one above — say, “Grocery”.</p>';
-    box.innerHTML = forecast + listsHtml;
+    // the index: "Forecasted Items" sits at the top, then your own lists
+    const rows = renderForecastIndexRow(forecast) + lists.map(renderIndexRow).join('');
+    box.innerHTML =
+      '<div class="tablewrap"><table class="t">' +
+        '<thead><tr><th>List</th><th>Progress</th><th class="num">Still to buy</th><th></th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table></div>';
   }
 
-  // the standing forecast card — recurring buys that are due, from your history
-  function renderForecast(f) {
-    const fc = f || { items: [], note: '' };
-    const items = fc.items || [];
+  // "Forecasted Items" as one row in the index of lists
+  function renderForecastIndexRow(f) {
+    const n = (f.items || []).length;
+    return '<tr>' +
+      '<td><button class="link" data-action="bkOpenList" data-id="' + FORECAST_ID + '">🔮 Forecasted Items</button></td>' +
+      '<td class="muted">' + (n ? esc(n) + ' likely due' : 'nothing due right now') + '</td>' +
+      '<td class="num">~' + fmt(f.estimatedTotal) + '</td>' +
+      '<td><button class="ghost" data-action="bkOpenList" data-id="' + FORECAST_ID + '">Open →</button></td>' +
+    '</tr>';
+  }
+
+  // the "Forecasted Items" list opened — every forecast item, read-only, with working
+  function renderForecastDetail(f) {
+    const items = f.items || [];
     const rows = items.map((it) =>
       '<tr' + (it.overdue ? ' class="is-out"' : '') + '>' +
         '<td>' + esc(it.label) + '</td>' +
@@ -1300,12 +1315,17 @@
           '<thead><tr><th>Likely due</th><th class="num">Usual qty</th><th class="num">Est. cost</th><th>Why</th></tr></thead>' +
           '<tbody>' + rows + '</tbody>' +
         '</table></div>' +
-        '<p class="muted" style="margin-top:.4rem">Estimated total of what it could price: <strong>' + fmt(fc.estimatedTotal) + '</strong>' +
-          (fc.unpricedCount ? ' · ' + esc(fc.unpricedCount) + ' with no known price yet' : '') + '</p>'
+        '<p class="muted" style="margin-top:.4rem">Estimated total of what it could price: <strong>' + fmt(f.estimatedTotal) + '</strong>' +
+          (f.unpricedCount ? ' · ' + esc(f.unpricedCount) + ' with no known price yet' : '') + '</p>'
       : '';
     return '<div class="card">' +
-      '<div class="cardhead"><h3>🔮 Likely due — from your history</h3></div>' +
-      '<p class="hint">' + esc(fc.note || '') + '</p>' +
+      '<div class="cardhead">' +
+        '<div class="row" style="gap:.6rem;align-items:baseline">' +
+          '<button class="link" data-action="bkCloseList">← All lists</button>' +
+          '<h3>🔮 Forecasted Items</h3>' +
+        '</div>' +
+      '</div>' +
+      '<p class="hint">' + esc(f.note || '') + '</p>' +
       body +
     '</div>';
   }
