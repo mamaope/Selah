@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selah — Organisation (offline)</title>
+<link rel="stylesheet" href="web/assets/tokens.css">
+<style>body{padding:0}.wrap{max-width:60rem;margin:0 auto;padding:1.5rem 1.25rem 4rem}</style>
+</head><body>
+<div class="wrap">
+  <p><a class="link" href="home.html">← Home</a></p>
+  <header class="viewhead"><h2>Organisation suite</h2></header>
+  <p class="lede">Everything here is stored <strong>encrypted, on this computer</strong>. Nothing is sent anywhere.</p>
+
+  <div class="door-grid">
+    <button class="door" data-go="web/calculators.html#all"><h3>🧮 Calculators</h3><p>PAYE, WHT, VAT, presumptive — offline.</p></button>
+    <button class="door" id="add-book"><h3>📕 My Books</h3><p id="books-count">Loading…</p></button>
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <h3>Your Books (offline)</h3>
+    <div class="row"><input type="text" id="bn" placeholder="Home, Shop, Rentals" style="flex:1"><button class="primary" id="mk">Add</button></div>
+    <ul id="list" class="cal-items" style="margin-top:.6rem"></ul>
+    <p class="src">Stored in your local vault. Close the app and it is still here; copy the vault file and it moves with you.</p>
+  </div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  async function refresh() {
+    const books = await window.selah.store.get('books');
+    $('list').innerHTML = books.map(b => '<li>📕 ' + (b.name||'') + '</li>').join('') || '<li class="muted">No Books yet.</li>';
+    $('books-count').textContent = books.length + ' book' + (books.length===1?'':'s');
+  }
+  $('mk').onclick = async () => { const n=$('bn').value.trim(); if(!n) return; await window.selah.store.put('books',{name:n}); $('bn').value=''; refresh(); };
+  document.addEventListener('click', e => { const b=e.target.closest('[data-go]'); if(b) location.href=b.dataset.go; });
+  refresh();
+</script>
+</body></html>

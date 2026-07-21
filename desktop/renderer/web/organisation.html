@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0A0F0D">
+<script src="assets/theme.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selah — for organisations</title>
+<meta name="description" content="What you are owed, what you owe, and what is about to change. Every number shows its working.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/home.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="index.html">
+    <svg viewBox="0 0 40 56" width="18" height="25" aria-hidden="true">
+      <rect x="6" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+      <rect x="24" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+    </svg>
+    <span>Selah</span>
+  </a>
+  <nav class="topnav">
+    <a href="calculators.html#all">Calculators</a>
+    <a href="calculators.html#calc=clock">What's coming</a>
+    <a href="individual.html">For individuals</a>
+    <a href="organisation.html">For organisations</a>
+    <button id="signout" class="ghost" hidden data-action="signOut">Sign out</button>
+    <button id="theme" class="ghost" aria-label="Toggle theme">◐</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ═══════════ 🔴 REFUSED — the whole screen, because it deserves it ═══════════ -->
+  <section id="view-refused" hidden>
+    <div class="hero">
+      <h1>We will not store your data, because we are not yet allowed to.</h1>
+      <p class="lede" id="refused-lede"></p>
+    </div>
+    <div id="refused-body"></div>
+  </section>
+
+  <!-- ═══════════ SIGN IN ═══════════ -->
+  <section id="view-signin" hidden>
+    <div class="hero">
+      <h1>Your company's tax, computed from the Act.</h1>
+      <p class="lede"><strong>A director who has never filed a personal return blocks your company's tax clearance certificate.</strong> It is invisible from inside your own books, and you find out on the day you lose the tender.</p>
+    </div>
+
+    <div class="card" style="max-width:460px">
+      <!-- ── SIGN IN ─────────────────────────────────────────────────────── -->
+      <div id="step-login">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" placeholder="you@example.com" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+
+        <label for="password" style="margin-top:10px;display:block">Password</label>
+        <input type="password" id="password" autocomplete="current-password" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+
+        <button class="cta" style="margin-top:12px;width:100%" data-action="login">Sign in</button>
+        <button class="link" style="margin-top:10px" data-action="showRegister">Create an account</button>
+        <button class="link" style="margin-top:4px" data-action="showForgot">Forgot your password?</button>
+      </div>
+
+      <!-- ── CREATE AN ACCOUNT ───────────────────────────────────────────── -->
+      <div id="step-register" hidden>
+        <label for="r-email">Email</label>
+        <input type="email" id="r-email" autocomplete="email" placeholder="you@example.com" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+
+        <label for="r-password" style="margin-top:10px;display:block">Choose a password</label>
+        <input type="password" id="r-password" autocomplete="new-password" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+        <p class="hint" style="margin-top:6px">
+          At least 10 characters. No capitals-and-a-symbol rules — those produce
+          <em>Passw0rd!</em> and nothing else. Length is what protects you.
+        </p>
+
+        <button class="cta" style="margin-top:12px;width:100%" data-action="register">Create my account</button>
+        <button class="link" style="margin-top:10px" data-action="showLogin">← I already have an account</button>
+      </div>
+
+      <!-- ── FORGOT ──────────────────────────────────────────────────────── -->
+      <div id="step-forgot" hidden>
+        <label for="f-email">Your email</label>
+        <input type="email" id="f-email" autocomplete="email" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+        <button class="cta" style="margin-top:12px;width:100%" data-action="forgot">Email me a reset link</button>
+        <button class="link" style="margin-top:10px" data-action="showLogin">← back to sign in</button>
+      </div>
+
+      <p id="signin-msg" class="hint" style="margin-top:12px"></p>
+
+      <p class="hint" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <strong>What we do with your email.</strong> We encrypt it, and we index it with a one-way
+        hash — so we can tell whether an address is already registered without ever holding a
+        readable list of our own users. Your password is hashed with scrypt and is not readable
+        by us either. You can see who has read your data, take it with you, or delete it entirely —
+        and delete means <em>delete</em>, not archive.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══════════ THE HOME — what to do next ═══════════ -->
+  <!-- ══ SIGNED IN — AND HONESTLY EMPTY ═══════════════════════════════════
+       🔴 THE TEMPTATION HERE IS A DASHBOARD.
+       Four tiles, a chart, a green "compliant" badge, some plausible figures.
+       It would demo beautifully and it would be a lie: we have not asked this
+       company a single question, so we know NOTHING about it.
+       A product that shows you an invented number has taught you to distrust its
+       real ones. So this screen says what is true — you are in, and there is
+       nothing here yet — and it says what is coming.                          -->
+  <section id="view-home" hidden>
+    <!-- Carried over from sign-up: things we could NOT do, said out loud. -->
+    <div id="signup-note" class="card refuse" hidden></div>
+
+    <header class="viewhead">
+      <h2 id="org-hello">You are signed in.</h2>
+    </header>
+
+    <div class="card">
+      <h3>There is nothing on this screen yet, and we are not going to invent any.</h3>
+      <p>We have not asked your company a single question, so we know nothing about it.
+         We could fill this page with a dashboard and a green “compliant” badge. It would
+         demo well. It would also be a lie, and a tool that shows you one invented number
+         has taught you to distrust its real ones.</p>
+      <p class="muted">Your account exists. Nothing is stored against it but your phone number.</p>
+    </div>
+
+    <div class="card">
+      <h3>What is being built here</h3>
+      <p>The engine already computes every one of these for a company. The screens are what is missing.</p>
+      <ul>
+        <li><strong>The company tax calendar</strong> — PAYE, VAT, WHT and NSSF on the 15th; provisional tax on the last day of the 6th and 12th month of your year of income. Computed from the Act, not typed into a spreadsheet once and forgotten.</li>
+        <li><strong>The director trap</strong> — a director who has never filed a <em>personal</em> return blocks your company’s tax clearance certificate. It is invisible from inside your own books, and you find out on the day you lose the tender.</li>
+        <li><strong>TCC readiness</strong> — the five criteria URA actually applies, four of which are administrative and therefore objectionable.</li>
+        <li><strong>The WHT credit tracker</strong> — the 6% withheld from your invoices is not a cost. It is a prepayment of your tax, and most Ugandan businesses never claim it.</li>
+      </ul>
+      <p class="src">Every calculator on this site already works, signed in or not, and stores nothing.
+         <a href="calculators.html#all">Browse all 37 →</a></p>
+    </div>
+
+    <button class="ghost" data-action="signOut">Sign out</button>
+  </section>
+
+</main>
+<script src="assets/api.js"></script>
+<script src="assets/organisation.js"></script>
+<script src="assets/auth.js"></script>
+</body>
+</html>

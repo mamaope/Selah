@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0A0F0D">
+<script src="assets/theme.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selah — pause, and know where you stand</title>
+<meta name="description" content="Which taxes apply to you, why, and when. Uganda's tax rules, encoded correctly.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/home.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="index.html">
+    <svg viewBox="0 0 40 56" width="18" height="25" aria-hidden="true">
+      <rect x="6" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+      <rect x="24" y="2" width="10" height="52" rx="2" fill="var(--emerald-600)"/>
+    </svg>
+    <span>Selah</span>
+  </a>
+  <nav class="topnav">
+    <a href="calculators.html#all">Calculators</a>
+    <a href="calculators.html#calc=clock">What's coming</a>
+    <a href="individual.html">For individuals</a>
+    <a href="organisation.html">For organisations</a>
+    <span class="stamp">verified 11 jul 2026</span>
+    <button id="theme" class="ghost" aria-label="Toggle theme">◐</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ═══════════ THE GUIDE — the front door ═══════════ -->
+  <section id="view-guide">
+    <div class="hero">
+      <h1>Which taxes apply to you?</h1>
+      <p class="lede">
+        Most people don't pay the wrong amount. They pay nothing at all —
+        because nobody ever told them the tax existed.
+        <strong>Answer a few plain questions. No tax words. We'll tell you what applies to you, why, and when.</strong>
+      </p>
+    </div>
+
+    <div id="quiz" class="card quiz"></div>
+    <p class="lede" style="margin-top:20px;font-size:15px">
+      Already know what you need? <button class="link" data-action="showIndex">Browse all 37 calculators →</button>
+    </p>
+  </section>
+
+
+  <!-- ═══════════ THE CENTRE — browse every calculator ═══════════ -->
+  <section id="view-index" hidden>
+    <div class="hero">
+      <button class="ghost back" data-action="restart">← Back to the guide</button>
+      <h1>The calculator centre</h1>
+      <p class="lede">
+        <strong>Thirty-seven calculators. Most of them do not exist anywhere else in Uganda.</strong>
+        Every one shows its working and cites the law it came from.
+        If we are not sure, it refuses to give you a number.
+      </p>
+      <p class="lede" style="font-size:15px">
+        Don't know which you need? <button class="link" data-action="restart">Let the guide tell you →</button>
+      </p>
+    </div>
+    <div class="card" style="margin-bottom:18px;padding:14px 16px">
+      <label for="calc-search" style="margin-bottom:6px">What are you trying to work out?</label>
+      <input type="search" id="calc-search" autocomplete="off"
+             placeholder="salary · rent · I owe URA money · tender · take home pay"
+             style="width:100%;font-size:15px;padding:10px 12px;border:1px solid var(--border-str);border-radius:var(--radius);background:var(--surface-2);color:var(--ink-900)">
+      <p class="hint" style="margin-top:8px">
+        Search in plain words. <strong>You do not need to know the name of the tax</strong> —
+        that is rather the point. <span id="calc-count" class="stamp"></span>
+      </p>
+    </div>
+
+    <div id="calc-index" class="door-grid"></div>
+  </section>
+
+  <!-- ═══════════ YOUR TAXES ═══════════ -->
+  <section id="view-result" hidden>
+    <div class="hero">
+      <button class="ghost back" data-action="restart">← Start again</button>
+      <h1 id="result-title">Your taxes</h1>
+      <p class="lede" id="result-sub"></p>
+    </div>
+    <div id="obligations"></div>
+    <p class="lede" style="margin-top:22px;font-size:15px">
+      <button class="link" data-action="showIndex">Browse all 37 calculators →</button>
+    </p>
+  </section>
+
+  <!-- ═══════════ THE WORKING — calculators, behind the guide ═══════════ -->
+  <section id="view-calc" hidden>
+    <div class="hero">
+      <button class="ghost back" data-action="backToResult">← Back to your taxes</button>
+      <h1 id="calc-title">The working</h1>
+      <p class="lede" id="calc-sub"></p>
+    </div>
+
+    <div class="panel" id="panel-paye" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your salary</h2>
+          <label>Gross monthly salary (UGX)</label>
+          <input type="number" id="paye-gross" value="1000000" step="10000">
+          <label>Residence</label>
+          <select id="paye-res"><option value="resident">Resident</option><option value="non-resident">Non-resident</option></select>
+          <label class="check"><input type="checkbox" id="paye-nssf" checked> Include NSSF and Local Service Tax</label>
+        </div>
+        <div id="out-paye"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-presump" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your sales</h2>
+          <label>Annual sales, before costs (UGX)</label>
+          <input type="number" id="pre-turnover" value="65000000" step="1000000">
+          <label class="check"><input type="checkbox" id="pre-records" checked> I keep records of my sales and costs</label>
+          <label class="check"><input type="checkbox" id="pre-prof"> I provide professional services
+            <span class="hint">medical · dental · engineering · architectural · accounting · legal · construction</span></label>
+        </div>
+        <div id="out-presump"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-wht" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your invoices</h2>
+          <label>Total invoiced to Government or large companies (UGX)</label>
+          <input type="number" id="wht-inv" value="60000000" step="1000000">
+          <label>How many invoices did you raise?</label>
+          <input type="number" id="wht-exp" value="11" min="1">
+          <label>How many withholding tax certificates do you actually hold?</label>
+          <input type="number" id="wht-held" value="4" min="0">
+        </div>
+        <div id="out-wht"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-vat" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your sales</h2>
+          <label>Annual sales (UGX)</label>
+          <input type="number" id="vat-annual" value="260000000" step="10000000">
+          <label>Most you sold in any three months (UGX)</label>
+          <input type="number" id="vat-quarter" value="65000000" step="5000000">
+          <label>What you expect to sell in the next three months (UGX)</label>
+          <input type="number" id="vat-forecast" value="0" step="5000000">
+        </div>
+        <div id="out-vat"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-arrears" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Money you already owe</h2>
+          <label>How much (UGX)</label>
+          <input type="number" id="arr-principal" value="4000000" step="500000">
+          <label>How many months late?</label>
+          <input type="number" id="arr-months" value="60" min="0">
+          <label class="check"><input type="checkbox" id="arr-compound" checked> This is VAT (VAT compounds)</label>
+        </div>
+        <div id="out-arrears"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-entity" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your profit</h2>
+          <label>Annual profit (UGX)</label>
+          <input type="number" id="ent-profit" value="42000000" step="1000000">
+          <p class="hint">Everyone assumes a company pays more tax. Up to a point the opposite is true — and the point is exactly computable.</p>
+        </div>
+        <div id="out-entity"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-extract" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Taking money out</h2>
+          <label>Company profit to take out (UGX)</label>
+          <input type="number" id="ext-profit" value="10000000" step="1000000">
+          <p class="hint">We will not tell you what to do. We will price every route and show you what each one requires of you.</p>
+        </div>
+        <div id="out-extract"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-exempt" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Four questions</h2>
+          <label class="check"><input type="checkbox" id="ex-after" checked> Established after 1 July 2025</label>
+          <label class="check"><input type="checkbox" id="ex-citizen" checked> At least 51% owned by East African citizens</label>
+          <label>Registered capital (UGX)</label>
+          <input type="number" id="ex-capital" value="100000000" step="10000000">
+          <label class="check"><input type="checkbox" id="ex-prior"> I — or a relative — have claimed this before</label>
+          <label class="check"><input type="checkbox" id="ex-file" checked> I will file returns</label>
+        </div>
+        <div id="out-exempt"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-tcc" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your certificate</h2>
+          <label class="check"><input type="checkbox" id="tcc-profile" checked> URA has our current details</label>
+          <label class="check"><input type="checkbox" id="tcc-returns" checked> The company has filed all its returns</label>
+          <label>Money the company owes URA (UGX)</label>
+          <input type="number" id="tcc-arrears" value="0" step="1000000">
+          <label class="check"><input type="checkbox" id="tcc-mou"> We have an agreed payment plan</label>
+          <label>NSSF arrears (UGX)</label>
+          <input type="number" id="tcc-nssf" value="0" step="1000000">
+          <div class="divider"></div>
+          <label class="check"><input type="checkbox" id="tcc-d1" checked> Director 1 has filed their <em>own personal</em> return</label>
+          <label class="check"><input type="checkbox" id="tcc-d2"> Director 2 has filed their <em>own personal</em> return</label>
+          <p class="hint">A spotless company is still refused if one director hasn't filed. Try unticking Director 2.</p>
+        </div>
+        <div id="out-tcc"></div>
+      </div>
+    </div>
+
+    <!-- ══ NEW, 11 JULY 2026 — the nine that completes Tier 1 ══ -->
+
+    <div class="panel" id="panel-netgross" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>What they take home</h2>
+          <label>Take-home pay you want them to receive (UGX / month)</label>
+          <input type="number" id="ng-target" value="1000000" step="50000">
+          <label>Residence</label>
+          <select id="ng-res"><option value="resident">Resident</option><option value="non-resident">Non-resident</option></select>
+          <p class="hint">Every employer has had this conversation. Nobody has a tool for it — so everyone guesses, and guesses low.</p>
+        </div>
+        <div id="out-netgross"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-cost" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>The hire</h2>
+          <label>Gross monthly salary (UGX)</label>
+          <input type="number" id="tc-gross" value="1000000" step="100000">
+          <label>Years they have already worked for you</label>
+          <input type="number" id="tc-years" value="1" min="0">
+          <label>Severance in your contract (months per year worked)</label>
+          <input type="number" id="tc-sev" value="0" min="0" step="0.5">
+          <p class="hint">Leave severance at 0 if your contract is silent. <strong>The law in force fixes no figure</strong> — and the Act that would is signed but not yet in force.</p>
+        </div>
+        <div id="out-cost"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-cit" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your company's year</h2>
+          <label>Chargeable income — profit after allowable deductions (UGX)</label>
+          <input type="number" id="cit-chargeable" value="100000000" step="10000000">
+          <label>Losses brought forward (UGX)</label>
+          <input type="number" id="cit-lossbf" value="0" step="10000000">
+          <label>Years you have been carrying those losses</label>
+          <input type="number" id="cit-losses" value="0" min="0">
+          <p class="hint">Past 7 years, <strong>only half your brought-forward loss is deductible</strong> (s.36(6)). Try 80,000,000 over 9 years. <strong>There is no minimum tax</strong> — Parliament deleted it.</p>
+        </div>
+        <div id="out-cit"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-election" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your year</h2>
+          <label>Annual sales, before costs (UGX)</label>
+          <input type="number" id="el-turnover" value="100000000" step="5000000">
+          <label>Your costs for the year (UGX)</label>
+          <input type="number" id="el-expenses" value="90000000" step="5000000">
+          <label class="check"><input type="checkbox" id="el-records" checked> I keep records</label>
+          <label class="check"><input type="checkbox" id="el-company"> We are a limited company</label>
+          <p class="hint">Presumptive tax is charged on <em>turnover</em>. It punishes a thin margin. You may elect out — in writing.</p>
+        </div>
+        <div id="out-election"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-rental" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your property</h2>
+          <label>Rent received in the year (UGX)</label>
+          <input type="number" id="rn-rent" value="10000000" step="1000000">
+          <label>What you spent on the property (UGX)</label>
+          <input type="number" id="rn-exp" value="4000000" step="500000">
+          <label class="check"><input type="checkbox" id="rn-ind" checked> I own it personally (not through a company)</label>
+          <p class="hint">As an individual you get <strong>no deduction for expenses at all</strong>. Untick to see what a company would pay.</p>
+        </div>
+        <div id="out-rental"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-whtrate" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>The payment</h2>
+          <label>What is the payment for?</label>
+          <select id="wr-type"></select>
+          <label>Who are you paying?</label>
+          <select id="wr-res"><option value="resident">A Ugandan resident</option><option value="non-resident">A non-resident</option></select>
+          <label>Amount (UGX)</label>
+          <input type="number" id="wr-amt" value="10000000" step="1000000">
+          <label class="check"><input type="checkbox" id="wr-net"> That is what they must RECEIVE (gross it up)</label>
+          <p class="hint">If you fail to withhold, URA does not chase your supplier. <strong>It chases you.</strong></p>
+        </div>
+        <div id="out-whtrate"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-vatamt" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>The invoice</h2>
+          <label>Amount (UGX)</label>
+          <input type="number" id="va-amt" value="118000" step="1000">
+          <label class="check"><input type="checkbox" id="va-inc" checked> This amount already includes VAT</label>
+          <p class="hint">To strip VAT out you multiply by 18 ÷ 118 — <strong>not</strong> by 18%. That error is worth 2.7% of every invoice.</p>
+        </div>
+        <div id="out-vatamt"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-vatdereg" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Coming off VAT</h2>
+          <label>Your sales in the last 3 months (UGX)</label>
+          <input type="number" id="vd-q" value="50000000" step="5000000">
+          <label>Your sales in the last 12 months (UGX)</label>
+          <input type="number" id="vd-a" value="260000000" step="10000000">
+          <p class="hint">There is a <strong>75,000,000-wide trap</strong> here where you are neither required to register nor entitled to leave. The default figures put you in it.</p>
+        </div>
+        <div id="out-vatdereg"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-vd" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>The arrear</h2>
+          <label>Tax you owe, before interest (UGX)</label>
+          <input type="number" id="vdi-principal" value="4000000" step="500000">
+          <label>How many months late?</label>
+          <input type="number" id="vdi-months" value="60" min="0">
+          <label class="check"><input type="checkbox" id="vdi-compound" checked> This is VAT (VAT compounds)</label>
+          <p class="hint">Disclose before proceedings start and the Commissioner <em>may</em> waive the interest and the fine entirely. May. Not must.</p>
+        </div>
+        <div id="out-vd"></div>
+      </div>
+    </div>
+
+    <!-- ══ TIER 2 — verified against primary law, 11 July 2026 ══ -->
+
+    <div class="panel" id="panel-mvbenefit" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>The company car</h2>
+          <label>What the car was worth when you first gave it to them (UGX)</label>
+          <input type="number" id="mv-value" value="100000000" step="5000000">
+          <label>Years since you first provided it (0 = this is year one)</label>
+          <input type="number" id="mv-years" value="1" min="0">
+          <label>Days in the year it was available for private use</label>
+          <input type="number" id="mv-days" value="365" min="0" max="366">
+          <label>What the employee pays you for it (UGX/year)</label>
+          <input type="number" id="mv-pays" value="0" step="100000">
+          <p class="hint"><strong>URA's own page is nine years out of date here</strong> — it omits the 35% depreciation. Follow URA and you over-tax from year two.</p>
+        </div>
+        <div id="out-mvbenefit"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-housing" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Housing you provide</h2>
+          <label>Market rent of the house (UGX/month)</label>
+          <input type="number" id="hb-rent" value="600000" step="50000">
+          <label>Their CASH pay — salary and allowances (UGX/month)</label>
+          <input type="number" id="hb-cash" value="3500000" step="100000">
+          <label>What the employee pays toward the rent (UGX/month)</label>
+          <input type="number" id="hb-pays" value="50000" step="10000">
+          <p class="hint"><strong>There is no gross-up.</strong> The widely-repeated 17.647% instruction over-taxes. URA's own worked example proves it.</p>
+        </div>
+        <div id="out-housing"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-loanbenefit" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>A loan to your employee</h2>
+          <label>Total loans to this employee (UGX)</label>
+          <input type="number" id="lb-amount" value="10000000" step="1000000">
+          <label>Interest you charge them (%/year)</label>
+          <input type="number" id="lb-rate" value="5" step="0.5">
+          <label>Months of the year the loan was outstanding</label>
+          <input type="number" id="lb-months" value="12" min="1" max="12">
+          <p class="hint">The Act says "the BoU <em>discount rate</em>". BoU publishes three rates and calls <strong>none of them that</strong>. We use 9.75% and we tell you it's an interpretation.</p>
+        </div>
+        <div id="out-loanbenefit"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-terminal" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>The final payment</h2>
+          <label>What is it?</label>
+          <select id="tb-kind">
+            <option value="termination_compensation">Compensation for termination / redundancy</option>
+            <option value="gratuity">Gratuity</option>
+          </select>
+          <label>Amount (UGX)</label>
+          <input type="number" id="tb-amount" value="50000000" step="1000000">
+          <label>Years they worked for YOU</label>
+          <input type="number" id="tb-years" value="12" min="0">
+          <p class="hint"><strong>Gratuity is fully taxable.</strong> The 25% relief is for termination compensation only. RSM's published guide gets this wrong.</p>
+        </div>
+        <div id="out-terminal"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-secondjob" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Two jobs</h2>
+          <label>Your MAIN job (UGX/month)</label>
+          <input type="number" id="mj-main" value="400000" step="50000">
+          <label>Your SECOND job (UGX/month)</label>
+          <input type="number" id="mj-second" value="500000" step="50000">
+          <p class="hint">A second job is taxed at a <strong>flat 30%</strong> — no tax-free band, no lower steps. And <strong>you can claim the overpayment back</strong>. Almost nobody does.</p>
+        </div>
+        <div id="out-secondjob"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-capallow" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>An asset you bought</h2>
+          <label>Cost (UGX)</label>
+          <input type="number" id="ca-cost" value="80000000" step="5000000">
+          <label>What is it?</label>
+          <select id="ca-class">
+            <option value="1">Computers and data equipment — 40%</option>
+            <option value="2">Plant &amp; machinery (farming, manufacturing, mining) — 30%</option>
+            <option value="3" selected>Everything else — vehicles, furniture, office equipment — 20%</option>
+          </select>
+          <label class="check"><input type="checkbox" id="ca-vehicle" checked> It is a road vehicle</label>
+          <label class="check"><input type="checkbox" id="ca-commercial"> ...and it is commercial (over ½ tonne, or 13+ passengers, or used in transport/hire)</label>
+          <p class="hint"><strong>The 50% initial allowance is abolished</strong> (1 July 2023). Any model built on a first-year 50% write-off is badly overstating your relief.</p>
+        </div>
+        <div id="out-capallow"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-startupcost" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Setting up</h2>
+          <label>Non-recurring start-up costs (UGX)</label>
+          <input type="number" id="sc-amount" value="20000000" step="1000000">
+          <label>Years since you incurred them</label>
+          <input type="number" id="sc-years" value="0" min="0">
+          <p class="hint">Incorporation, licences, legal fees, initial research. <strong>25% a year for four years (s.29).</strong> Almost every Ugandan accountant expenses it once and loses three quarters of it.</p>
+        </div>
+        <div id="out-startupcost"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-provisional" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Paying as you go</h2>
+          <label>Your estimate of this year's tax (UGX)</label>
+          <input type="number" id="pt-est" value="40000000" step="1000000">
+          <label>WHT already deducted from you this year (UGX)</label>
+          <input type="number" id="pt-wht" value="5000000" step="1000000">
+          <label class="check"><input type="checkbox" id="pt-company" checked> We are a company (2 instalments, not 4)</label>
+          <p class="hint">Understate the estimate below 90% of actual and <strong>TPCA s.60</strong> charges 20% of the gap. Farming is carved out entirely.</p>
+        </div>
+        <div id="out-provisional"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-inputvat" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>What you spent (VAT-exclusive, UGX)</h2>
+          <label>Telephone and airtime</label>
+          <input type="number" id="iv-phone" value="10000000" step="1000000">
+          <label>Passenger cars, and their repairs</label>
+          <input type="number" id="iv-car" value="50000000" step="5000000">
+          <label>Entertainment — food, drink, hospitality</label>
+          <input type="number" id="iv-ent" value="5000000" step="1000000">
+          <label>Ordinary business purchases</label>
+          <input type="number" id="iv-other" value="100000000" step="10000000">
+          <p class="hint">🔑 <strong>Only 10% of telephone VAT is blocked. Ninety percent is recoverable.</strong> Most businesses claim all of it (wrong) or none of it (poorer).</p>
+        </div>
+        <div id="out-inputvat"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-advancetax" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your vehicles</h2>
+          <label>What kind?</label>
+          <select id="at-kind">
+            <option value="goods">Goods vehicle / lorry</option>
+            <option value="passenger">Taxi, omnibus or bus</option>
+            <option value="boda">Boda boda</option>
+          </select>
+          <label>Loading capacity in tonnes (gross weight MINUS net weight, from the logbook)</label>
+          <input type="number" id="at-tonnes" value="7" step="0.5" min="0">
+          <label>Passenger seats</label>
+          <input type="number" id="at-seats" value="14" min="0">
+          <label>How many vehicles?</label>
+          <input type="number" id="at-count" value="1" min="1">
+          <p class="hint">🔑 <strong>Loading capacity, not gross weight.</strong> Nearly every published guide implies gross — and overstates your tax.</p>
+        </div>
+        <div id="out-advancetax"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-stampduty" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>The document</h2>
+          <label>What are you signing?</label>
+          <select id="sd-instrument"></select>
+          <label>Value (UGX)</label>
+          <input type="number" id="sd-value" value="500000000" step="10000000">
+          <p class="hint">🔴 The 2026 Bill doubles the transfer rate to <strong>3%</strong> — but KPMG's list of what Parliament <em>passed</em> doesn't mention it. <strong>We compute the verified rate and tell you to get the gazetted Act.</strong></p>
+        </div>
+        <div id="out-stampduty"></div>
+      </div>
+    </div>
+
+    <!-- ══ PERSONAL FINANCE ══ -->
+
+    <div class="panel" id="panel-loan" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>The loan you were offered</h2>
+          <label>How much you borrow (UGX)</label>
+          <input type="number" id="ln-principal" value="10000000" step="1000000">
+          <label>The rate they quoted you (%/year)</label>
+          <input type="number" id="ln-rate" value="18" step="0.5">
+          <label>Over how many months?</label>
+          <input type="number" id="ln-months" value="36" min="1">
+          <label class="check"><input type="checkbox" id="ln-flat" checked> They quoted a FLAT rate</label>
+          <p class="hint">🔴 <strong>A flat rate is not the rate you pay.</strong> 18% flat is really about 31%. Untick to compare.</p>
+        </div>
+        <div id="out-loan"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-savings" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Saving up</h2>
+          <label>What you have now (UGX)</label>
+          <input type="number" id="sv-initial" value="0" step="100000">
+          <label>What you add each month (UGX)</label>
+          <input type="number" id="sv-monthly" value="200000" step="50000">
+          <label>Interest rate (%/year)</label>
+          <input type="number" id="sv-rate" value="8" step="0.5">
+          <label>For how many years?</label>
+          <input type="number" id="sv-years" value="10" min="1">
+          <label>Inflation (%/year)</label>
+          <input type="number" id="sv-infl" value="5.5" step="0.5">
+          <p class="hint">Always look at the <strong>second</strong> number — what it will actually buy.</p>
+        </div>
+        <div id="out-savings"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-retirement" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Retiring</h2>
+          <label>Your age now</label>
+          <input type="number" id="rt-age" value="30" min="18">
+          <label>Age you want to retire</label>
+          <input type="number" id="rt-retire" value="60" min="30">
+          <label>What you have saved so far (UGX)</label>
+          <input type="number" id="rt-pot" value="0" step="1000000">
+          <label>Your gross salary (UGX/month)</label>
+          <input type="number" id="rt-gross" value="2000000" step="100000">
+          <label>Expected return (%/year)</label>
+          <input type="number" id="rt-return" value="10" step="0.5">
+          <p class="hint">🔑 Your employer's 10% is <strong>exempt going in and exempt coming out</strong>. No other shilling in the tax code is treated this kindly.</p>
+        </div>
+        <div id="out-retirement"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-emergency" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>If the income stopped</h2>
+          <label>Your ESSENTIALS each month — rent, food, school fees, transport, medical (UGX)</label>
+          <input type="number" id="ef-essentials" value="1500000" step="100000">
+          <label>What you have saved (UGX)</label>
+          <input type="number" id="ef-saved" value="500000" step="100000">
+          <label>Months of cover you want</label>
+          <input type="number" id="ef-months" value="6" min="1">
+          <label>What you can save each month (UGX)</label>
+          <input type="number" id="ef-saving" value="200000" step="50000">
+          <p class="hint">Essentials — not spending. Not airtime, not eating out. What you could <em>not</em> stop.</p>
+        </div>
+        <div id="out-emergency"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-tbill" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>The treasury bill</h2>
+          <label>Face value — what you get at maturity (UGX)</label>
+          <input type="number" id="tby-face" value="1000000" step="100000">
+          <label>What you pay for it (UGX)</label>
+          <input type="number" id="tby-price" value="920000" step="10000">
+          <label>Days to maturity</label>
+          <input type="number" id="tby-days" value="364" min="1">
+          <p class="hint"><strong>The advertised yield is before tax.</strong> Government securities carry 20% WHT — not the 15% on bank interest.</p>
+        </div>
+        <div id="out-tbill"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-mortgage" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Buying a home</h2>
+          <label>Your TAKE-HOME pay (UGX/month)</label>
+          <input type="number" id="mg-income" value="4000000" step="100000">
+          <label>Debt payments you already have (UGX/month)</label>
+          <input type="number" id="mg-debt" value="0" step="100000">
+          <label>Your deposit (UGX)</label>
+          <input type="number" id="mg-deposit" value="30000000" step="5000000">
+          <label>Mortgage rate (%/year)</label>
+          <input type="number" id="mg-rate" value="18" step="0.5">
+          <label>Over how many years?</label>
+          <input type="number" id="mg-years" value="15" min="1">
+          <p class="hint"><strong>This is the maximum, not the target.</strong> Ugandan mortgage rates are usually variable. Borrow less than you can.</p>
+        </div>
+        <div id="out-mortgage"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-valuation" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>What is it worth?</h2>
+          <label>Annual profit (UGX)</label>
+          <input type="number" id="bv-profit" value="50000000" step="5000000">
+          <label>Annual revenue (UGX)</label>
+          <input type="number" id="bv-revenue" value="200000000" step="10000000">
+          <label>Net assets — what you own less what you owe (UGX)</label>
+          <input type="number" id="bv-assets" value="80000000" step="5000000">
+          <label>Earnings multiple</label>
+          <input type="number" id="bv-multiple" value="3" step="0.5" min="0.5">
+          <p class="hint">🔴 <strong>We will not give you a price.</strong> A business is worth what someone will pay. Every method here starts the conversation; none of them ends it.</p>
+        </div>
+        <div id="out-valuation"></div>
+      </div>
+    </div>
+
+    <!-- ══ F4 — THE COMMENCEMENT CLOCK ══ -->
+    <div class="panel" id="panel-clock" hidden>
+      <div class="grid">
+        <div class="card">
+          <h2>Your people</h2>
+          <p class="hint" style="margin-bottom:14px">
+            One law is <strong>signed but not in force</strong>. Tell us your staff and we will tell you
+            what it would cost the day it lands. <strong>This is not a liability.</strong> It is a number
+            you should be able to say out loud in a board meeting.
+          </p>
+          <label>How many employees?</label>
+          <input type="number" id="ck-count" value="10" min="0">
+          <label>Average gross salary (UGX / month)</label>
+          <input type="number" id="ck-salary" value="1500000" step="100000">
+          <label>Average years already served</label>
+          <input type="number" id="ck-years" value="4" min="0">
+          <label>Severance your contracts already accrue (months per year)</label>
+          <input type="number" id="ck-accrual" value="0" min="0" step="0.5">
+        </div>
+        <div id="out-clock"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p><strong>What this is.</strong> The Selah rules engine, running in your browser. Every figure was produced by executing a versioned rule, not by typing a number. The same code passes 408 engine tests and 176 UI tests, all run inside the build — a failing test cannot ship.</p>
+  <p><strong>What this is not.</strong> Tax advice. We haven't seen your contracts. Confirm with a licensed Ugandan tax adviser before acting.</p>
+  <p class="stamp">Uganda's tax law changes every 1 July. Rules verified 11 July 2026.</p>
+</footer>
+
+<script src="assets/engine.bundle.js"></script>
+<script src="assets/calculators.js"></script>
+</body>
+</html>

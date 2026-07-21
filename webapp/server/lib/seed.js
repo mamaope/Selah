@@ -64,8 +64,13 @@ async function seedAdmin() {
   //    weak door into everything.
   const strength = pw.check(password);
   if (!strength.ok) {
-    console.error(`\n  🔴 SEED_ADMIN_PASSWORD is too weak (${strength.error}). No admin was seeded.`);
-    console.error('     A seeded login is a permanent one — it deserves a real password.\n');
+    console.error('');
+    console.error('  🔴🔴🔴 SEED_ADMIN NOT CREATED — PASSWORD REJECTED 🔴🔴🔴');
+    console.error(`  ${strength.message}`);
+    console.error(`  You set a ${password.length}-character password. It must be at least ${pw.MIN}.`);
+    console.error('  Fix SEED_ADMIN_PASSWORD in .env and restart. Until then, there is NO admin,');
+    console.error('  and login will say "email and password do not match".');
+    console.error('');
     return { seeded: false, reason: 'weak password' };
   }
 

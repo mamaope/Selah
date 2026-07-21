@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selah — offline</title>
+<link rel="stylesheet" href="web/assets/tokens.css">
+<style>
+  body { padding: 0; }
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  .hero { text-align: center; padding: 2rem 0 1rem; }
+  .hero h1 { font-size: 2rem; letter-spacing: -.02em; }
+  .hero .lede { color: var(--ink-500); max-width: 34rem; margin: .5rem auto 0; }
+  .offline-badge { display:inline-flex; align-items:center; gap:.4rem; font-size:.75rem;
+    color: var(--emerald-700); border:1px solid var(--emerald-100); background:var(--emerald-50);
+    padding:.25rem .6rem; border-radius:999px; margin-bottom:1rem; }
+  .suites { display:grid; grid-template-columns: repeat(auto-fit, minmax(15rem,1fr)); gap:1rem; margin-top:1.5rem; }
+  .suite { text-align:left; }
+  .suite .ico { font-size:1.6rem; }
+  .lockbar { max-width: 26rem; margin: 1rem auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="offline-badge">● Offline — your data never leaves this computer</div>
+    <h1>Selah</h1>
+    <p class="lede">Uganda's tax and money tools, on your own machine. No account, no server, no internet needed.</p>
+  </div>
+
+  <!-- the vault gate: set or enter a passphrase before the suites open -->
+  <div id="gate" class="lockbar"></div>
+
+  <div id="suites" class="suites" hidden>
+    <button class="door suite" data-go="web/calculators.html#all">
+      <h3><span class="ico">🧮</span> Calculators</h3>
+      <p>Every Ugandan tax figure — PAYE, WHT, VAT, presumptive, the lot — computed offline, showing its working.</p>
+    </button>
+    <button class="door suite" data-go="suite-individual.html">
+      <h3><span class="ico">👤</span> Individual suite</h3>
+      <p>Your Books, accounts, budget and analytics — stored encrypted on this machine.</p>
+    </button>
+    <button class="door suite" data-go="suite-organisation.html">
+      <h3><span class="ico">🏢</span> Organisation suite</h3>
+      <p>Company calendar, the director trap, WHT credits and TCC readiness — offline.</p>
+    </button>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  async function render() {
+    const st = await window.selah.vault.status();
+    const gate = $('gate');
+    if (st.open) { gate.innerHTML = ''; $('suites').hidden = false; return; }
+    $('suites').hidden = true;
+
+    if (!st.exists) {
+      gate.innerHTML =
+        '<div class="card"><h3>Set a passphrase</h3>' +
+        '<p class="hint">This is the ONLY key to your data. We never store it, and there is no reset — ' +
+        'if you lose it, the data cannot be recovered. That is the price of nobody but you ever reading it.</p>' +
+        '<input type="password" id="pp" placeholder="At least 8 characters" style="width:100%;margin-top:.6rem">' +
+        '<button class="primary" id="mk" style="margin-top:.6rem;width:100%">Create my vault</button>' +
+        '<p id="msg" class="hint"></p></div>';
+      $('mk').onclick = async () => {
+        try { await window.selah.vault.create($('pp').value); render(); }
+        catch (e) { $('msg').textContent = e.message; }
+      };
+    } else {
+      gate.innerHTML =
+        '<div class="card"><h3>Unlock your vault</h3>' +
+        '<input type="password" id="pp" placeholder="Your passphrase" style="width:100%;margin-top:.6rem">' +
+        '<button class="primary" id="op" style="margin-top:.6rem;width:100%">Unlock</button>' +
+        '<p id="msg" class="hint"></p></div>';
+      $('op').onclick = async () => {
+        const r = await window.selah.vault.open($('pp').value);
+        if (r.ok) render(); else $('msg').textContent = r.error;   // wrong passphrase → says so, never blanks
+      };
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-go]');
+    if (b) window.location.href = b.dataset.go;
+  });
+
+  render();
+</script>
+</body>
+</html>

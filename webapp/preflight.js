@@ -163,6 +163,33 @@ if (env.SELAH_ENCRYPTION_KEY && env.SELAH_ENCRYPTION_KEY === env.SELAH_INDEX_KEY
 // So: we do not just check that these are SET. We check whether they are
 // PLAUSIBLE, and we shout if they are not.
 // ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// SEED_ADMIN — catch a login you will never be able to use, BEFORE docker starts.
+//
+// 🔴 A SEED_ADMIN_PASSWORD under 10 characters is SILENTLY REFUSED by the seed at
+//    boot — the account is never created, and the only symptom, hours later, is
+//    "that email and password do not match an account". The error was in the boot
+//    log all along, buried. So we catch it HERE, where you will actually see it.
+//
+//    10 is the same minimum every real user's password must clear. A seeded login
+//    is permanent; it deserves at least that.
+// ═════════════════════════════════════════════════════════════════════════════
+const SEED_PW_MIN = 10;
+if (env.SEED_ADMIN_EMAIL || env.SEED_ADMIN_PASSWORD) {
+  if (!env.SEED_ADMIN_EMAIL) {
+    problems.push('🔴 SEED_ADMIN_PASSWORD is set but SEED_ADMIN_EMAIL is missing. No admin would be created.');
+  } else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(env.SEED_ADMIN_EMAIL)) {
+    problems.push(`🔴 SEED_ADMIN_EMAIL is "${env.SEED_ADMIN_EMAIL}" — that is not an email address. No admin would be created.`);
+  }
+  if (!env.SEED_ADMIN_PASSWORD) {
+    // email set, no password → the seed generates a random one and prints it. Fine, but say so.
+    problems.push('ℹ️  SEED_ADMIN_PASSWORD is empty. The seed will GENERATE a strong password and print it ONCE in `docker compose logs api`. Set a password if you want to choose your own.');
+  } else if (env.SEED_ADMIN_PASSWORD.length < SEED_PW_MIN) {
+    problems.push(`🔴 SEED_ADMIN_PASSWORD is ${env.SEED_ADMIN_PASSWORD.length} characters. It MUST be at least ${SEED_PW_MIN}.`);
+    problems.push(`   A shorter password is SILENTLY REFUSED at boot: the admin is never created, and login later says "email and password do not match". This is the single most common reason a seeded admin does not work.`);
+  }
+}
+
 const pdpo = ['PDPO_REGISTRATION_NUMBER', 'PDPO_REGISTERED_ON', 'DPO_NAME', 'DPO_EMAIL'];
 const setCount = pdpo.filter((k) => env[k]).length;
 

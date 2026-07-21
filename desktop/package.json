@@ -1,0 +1,19 @@
+{
+  "name": "selah-desktop",
+  "productName": "Selah",
+  "version": "1.0.0",
+  "description": "Selah — Uganda's tax and money tools, offline. Your data never leaves this machine.",
+  "main": "main.js",
+  "scripts": {
+    "prepare-assets": "node sync.js",
+    "start": "npm run prepare-assets && electron .",
+    "test": "node lib/store.test.js && node engine/engine.test.js && node engine/books.test.js && node engine/accounts.test.js && node engine/calendar.test.js && node engine/rollup.test.js && node engine/forecast.test.js && node engine/money.test.js",
+    "dist": "npm run prepare-assets && electron-builder"
+  },
+  "build": {
+    "appId": "ug.selah.desktop",
+    "files": ["main.js", "preload.js", "engine/**", "lib/**", "renderer/**", "!**/*.test.js"],
+    "directories": { "output": "dist" }
+  },
+  "devDependencies": { "electron": "^31.0.0" }
+}
