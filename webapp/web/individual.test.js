@@ -2049,9 +2049,15 @@ section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an
   await w.SelahActions.bkTab({ dataset: { tab: 'shopping' } }); await settle();
   await w.SelahActions.bkOpenList(D.querySelector('[data-action="bkOpenList"]')); await settle();
 
-  // a bought item offers Undo, and shows what was paid
-  const detail = D.getElementById('shopping-lists').textContent;
-  ok('a bought item shows the actual amount', /2,100/.test(detail));
+  // 🔑 bought items are HIDDEN by default — the list is what is still to buy
+  //    (the summary line still says "spent 2,100"; it is the ROWS that hide)
+  ok('🔑 a bought item row is hidden by default', !D.querySelector('[data-action="bkShopUndo"]'));
+  ok('...and offers to reveal them', !!D.querySelector('[data-action="bkToggleBought"]'));
+
+  // reveal the bought items
+  await w.SelahActions.bkToggleBought(); await settle();
+  ok('showing bought items reveals the row + its actual amount',
+     /2,100/.test([...D.querySelectorAll('#shopping-lists tbody tr')].map((t) => t.textContent).join(' ')));
   ok('🔑 a bought item offers Undo', !!D.querySelector('[data-action="bkShopUndo"]'));
 
   await w.SelahActions.bkShopUndo({ dataset: { list: 'sl1', id: 'i1' } }); await settle();

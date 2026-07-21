@@ -1294,42 +1294,70 @@
   }
 
   // the items of one open list
-  function renderDetail(l) {
-    const rows = (l.rows || []).map((it) => {
-      const done = it.status === 'done';
-      const est = done
-        ? '<span class="saved">✓ ' + fmt(it.actualAmount) + '</span>'
-        : (it.estimate == null ? '<span class="muted">—</span>' : '~' + fmt(it.estimate));
-      // pending qty is editable in place; a bought qty is a settled fact
-      const qtyCell = done
-        ? '<td class="num">' + esc(it.quantity) + '</td>'
-        : '<td class="num"><input type="number" class="si-qty-edit" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '" value="' + esc(it.quantity) + '" style="max-width:5rem"></td>';
-      const action = done
-        ? '<button class="ghost" data-action="bkShopUndo" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Undo</button>'
-        : '<button class="ghost" data-action="bkShopMark" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Mark bought</button>' +
-          ' <button class="ghost" data-action="bkDelShopItem" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '" aria-label="Remove">✕</button>';
-      const doneForm =
-        '<tr id="done-' + esc(it.id) + '" hidden><td colspan="5">' +
-          '<div class="card ask" style="margin:.3rem 0">' +
-            '<p class="muted">What did you actually pay for <strong>' + esc(it.label) + '</strong>? This records a real expense.</p>' +
-            '<div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap">' +
-              '<div><label>Paid (total)</label><input type="number" id="paid-' + esc(it.id) + '" placeholder="' + (it.estimate != null ? fmt(it.estimate) : 'amount') + '"></div>' +
-              '<div><label>How many' + (it.unit ? ' (' + esc(it.unit) + ')' : '') + '</label><input type="number" id="qty-' + esc(it.id) + '" value="' + esc(it.quantity) + '"></div>' +
-              '<div><label>Category</label><select id="cat-' + esc(it.id) + '">' + catsFor('out', true) + '</select></div>' +
-              '<div><label>From account</label><select id="acct-' + esc(it.id) + '">' + acctOpts() + '</select></div>' +
-              '<button class="primary" data-action="bkShopDone" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Bought</button>' +
-            '</div>' +
-            '<p id="done-msg-' + esc(it.id) + '" class="hint"></p>' +
+  let shopShowBought = false;   // bought items are tucked away until asked for
+
+  function renderShopRow(l, it) {
+    const done = it.status === 'done';
+    const est = done
+      ? '<span class="saved">✓ ' + fmt(it.actualAmount) + '</span>'
+      : (it.estimate == null ? '<span class="muted">—</span>' : '~' + fmt(it.estimate));
+    // pending qty is editable in place; a bought qty is a settled fact
+    const qtyCell = done
+      ? '<td class="num">' + esc(it.quantity) + '</td>'
+      : '<td class="num"><input type="number" class="si-qty-edit" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '" value="' + esc(it.quantity) + '" style="max-width:5rem"></td>';
+    const action = done
+      ? '<button class="ghost" data-action="bkShopUndo" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Undo</button>'
+      : '<button class="ghost" data-action="bkShopMark" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Mark bought</button>' +
+        ' <button class="ghost" data-action="bkDelShopItem" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '" aria-label="Remove">✕</button>';
+    const doneForm = done ? '' :
+      '<tr id="done-' + esc(it.id) + '" hidden><td colspan="5">' +
+        '<div class="card ask" style="margin:.3rem 0">' +
+          '<p class="muted">What did you actually pay for <strong>' + esc(it.label) + '</strong>? This records a real expense.</p>' +
+          '<div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap">' +
+            '<div><label>Paid (total)</label><input type="number" id="paid-' + esc(it.id) + '" placeholder="' + (it.estimate != null ? fmt(it.estimate) : 'amount') + '"></div>' +
+            '<div><label>How many' + (it.unit ? ' (' + esc(it.unit) + ')' : '') + '</label><input type="number" id="qty-' + esc(it.id) + '" value="' + esc(it.quantity) + '"></div>' +
+            '<div><label>Category</label><select id="cat-' + esc(it.id) + '">' + catsFor('out', true) + '</select></div>' +
+            '<div><label>From account</label><select id="acct-' + esc(it.id) + '">' + acctOpts() + '</select></div>' +
+            '<button class="primary" data-action="bkShopDone" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Bought</button>' +
           '</div>' +
-        '</td></tr>';
-      return '<tr' + (done ? ' class="muted"' : '') + '>' +
-        '<td>' + esc(it.label) + '</td>' +
-        qtyCell +
-        '<td>' + esc(it.unit || '') + '</td>' +
-        '<td class="num">' + est + '</td>' +
-        '<td>' + action + '</td>' +
-      '</tr>' + doneForm;
-    }).join('');
+          '<p id="done-msg-' + esc(it.id) + '" class="hint"></p>' +
+        '</div>' +
+      '</td></tr>';
+    return '<tr' + (done ? ' class="muted"' : '') + '>' +
+      '<td>' + esc(it.label) + '</td>' +
+      qtyCell +
+      '<td>' + esc(it.unit || '') + '</td>' +
+      '<td class="num">' + est + '</td>' +
+      '<td>' + action + '</td>' +
+    '</tr>' + doneForm;
+  }
+
+  function renderDetail(l) {
+    const items = l.rows || [];
+    // 🔑 STILL TO BUY IS THE LIST. Bought items are done business — they sit hidden
+    //    at the bottom until you ask to see them, so the list is what is left.
+    const pending = items.filter((it) => it.status !== 'done');
+    const bought  = items.filter((it) => it.status === 'done');
+
+    const pendingRows = pending.map((it) => renderShopRow(l, it)).join('');
+    const boughtRows  = bought.map((it) => renderShopRow(l, it)).join('');
+
+    const toggle = bought.length
+      ? '<tr class="shop-bought-bar"><td colspan="5">' +
+          '<button class="link" data-action="bkToggleBought">' +
+            (shopShowBought ? '▾ Hide bought items' : '▸ Show bought items (' + esc(bought.length) + ')') +
+          '</button>' +
+        '</td></tr>'
+      : '';
+
+    let body;
+    if (!items.length) body = '<tr><td colspan="5" class="muted">Nothing on this list yet.</td></tr>';
+    else if (!pending.length && !shopShowBought)
+      // everything is bought — say so, and still offer the toggle
+      body = '<tr><td colspan="5" class="muted">Everything on this list is bought. 🎉</td></tr>' + toggle;
+    else
+      body = (pendingRows || '<tr><td colspan="5" class="muted">Nothing left to buy on this list.</td></tr>') +
+             toggle + (shopShowBought ? boughtRows : '');
 
     const c = l.counts || {};
     const summary =
@@ -1345,7 +1373,7 @@
       summary +
       '<div class="tablewrap"><table class="t">' +
         '<thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Estimate</th><th></th></tr></thead>' +
-        '<tbody>' + (rows || '<tr><td colspan="5" class="muted">Nothing on this list yet.</td></tr>') + '</tbody>' +
+        '<tbody>' + body + '</tbody>' +
       '</table></div>' +
       '<div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap;margin-top:.6rem">' +
         '<div><label>Item</label><input type="text" id="si-label-' + esc(l.id) + '" placeholder="Sugar, milk, soap"></div>' +
@@ -1356,7 +1384,8 @@
     '</div>';
   }
 
-  A.bkOpenList  = (el) => { shopOpenList = el.dataset.id; renderShopping(); };
+  A.bkOpenList  = (el) => { shopOpenList = el.dataset.id; shopShowBought = false; renderShopping(); };
+  A.bkToggleBought = () => { shopShowBought = !shopShowBought; renderShopping(); };
   A.bkCloseList = ()   => { shopOpenList = null; renderShopping(); };
 
   A.bkAddList = async () => {
