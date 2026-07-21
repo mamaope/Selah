@@ -223,7 +223,7 @@ router.post('/login', async (req, res, next) => {
     await db.query('DELETE FROM auth_failures WHERE email_idx = $1', [idx]);
 
     const token = await session.issue(t.id, req);
-    res.cookie('selah_session', token, session.cookieOpts);
+    res.cookie('selah_session', token, session.cookieOptsFor(req));
     await db.audit({ actorId: t.id, subjectId: t.id, action: 'LOGIN', entity: 'taxpayers', entityId: t.id, req });
 
     res.json({ ok: true, kind: t.kind, emailVerified: t.email_verified });
@@ -342,7 +342,7 @@ router.post('/signout', session.require, async (req, res, next) => {
   try {
     await db.query('DELETE FROM sessions WHERE taxpayer_id = $1 AND token_hash = $2',
       [req.taxpayerId, session.hash(req.cookies?.selah_session || '')]);
-    res.clearCookie('selah_session', session.cookieOpts);
+    res.clearCookie('selah_session', session.cookieOptsFor(req));
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'LOGOUT', entity: 'sessions', req });
     res.json({ ok: true });
   } catch (e) { next(e); }

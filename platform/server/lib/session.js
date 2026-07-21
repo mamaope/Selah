@@ -31,12 +31,44 @@ async function require_(req, res, next) {
   next();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 `secure: NODE_ENV === 'production'` LOGGED EVERYONE OUT ON THE SERVER.
+//
+// A Secure cookie is REFUSED by the browser over plain HTTP. In production over
+// HTTP that meant: log in, the cookie is set, the browser throws it away because
+// the connection is not HTTPS, the next request has no session, and the app shows
+// the sign-in screen again. "Logged out right after logging in."
+//
+// The wrong fix is to drop `secure`. That would send the session cookie — and it
+// authorises everything — across the internet in the clear, over the same HTTP
+// that already exposes the password. For a product whose whole promise is
+// protecting a Ugandan's financial data, that is not a trade we make.
+//
+// The right fix is to make `secure` follow the ACTUAL PROTOCOL of the request:
+// OFF over HTTP (so login works while you are still bringing TLS up), and ON the
+// instant HTTPS is in front (so a real session is never sent in the clear). nginx
+// tells us which it is via X-Forwarded-Proto; `app.set('trust proxy', true)` in
+// index.js lets Express read it as `req.secure`.
+//
+// 🔴 THIS IS A STOPGAP, NOT A DESTINATION. Running this on HTTP means the password
+//    and the session still cross the network unencrypted. PUT TLS IN FRONT before
+//    a real Ugandan types a real password in. See RUN.md.
+// ═══════════════════════════════════════════════════════════════════════════
 const cookieOpts = {
   httpOnly: true,                       // JS cannot read it. XSS cannot steal it.
   sameSite: 'lax',
-  secure: process.env.NODE_ENV === 'production',
+  secure: process.env.NODE_ENV === 'production',   // kept for callers that want the strict default
   maxAge: DAYS * 24 * 60 * 60 * 1000,
   path: '/',
 };
 
-module.exports = { issue, require: require_, cookieOpts, hash };
+/**
+ * Cookie options for THIS request — `secure` reflects whether the browser reached
+ * us over HTTPS. Use this everywhere a session cookie is set or cleared, so the
+ * flag can never disagree with the connection that has to carry it.
+ */
+function cookieOptsFor(req) {
+  return { ...cookieOpts, secure: Boolean(req && req.secure) };
+}
+
+module.exports = { issue, require: require_, cookieOpts, cookieOptsFor, hash };

@@ -124,7 +124,7 @@ router.delete('/', async (req, res, next) => {
       detail: { note: 'Erasure requested by the data subject. Rows deleted, not archived.' } });
 
     await db.query('DELETE FROM taxpayers WHERE id = $1', [id]);   // cascades
-    res.clearCookie('selah_session', { path: '/' });
+    res.clearCookie('selah_session', require('../lib/session').cookieOptsFor(req));
 
     res.json({
       ok: true,

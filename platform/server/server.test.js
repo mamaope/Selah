@@ -18,6 +18,10 @@
 process.env.SELAH_ENCRYPTION_KEY = process.env.SELAH_ENCRYPTION_KEY
   || '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
 
+// 🔴 This suite controls the environment by hand (it empties the PDPO vars to
+//    test the closed gate). Stop the .env loader from refilling them from disk.
+process.env.SELAH_NO_ENV_FILE = '1';
+
 const request = require('supertest');
 const assert = require('assert');
 

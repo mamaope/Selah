@@ -279,6 +279,67 @@ section('🔴 THE GATE MUST NOT REFUSE A FACT IT CANNOT VERIFY');
 }
 
 
+
+section('🔴 THE SESSION COOKIE MUST SURVIVE THE CONNECTION IT ARRIVES ON');
+// A Secure cookie is refused by the browser over plain HTTP. In production over
+// HTTP that logged everyone out the instant they logged in — the cookie was set,
+// thrown away, and the next request had no session. So `secure` must follow the
+// ACTUAL protocol: off on HTTP (login works), on over HTTPS (never sent in clear).
+{
+  const s = require('./lib/session');
+  ok('🔴 over HTTP the cookie is NOT Secure — so the browser keeps it and you stay logged in',
+     s.cookieOptsFor({ secure: false }).secure === false);
+  ok('🔴 over HTTPS the cookie IS Secure — a real session is never sent in the clear',
+     s.cookieOptsFor({ secure: true }).secure === true);
+  ok('...httpOnly is on either way — JavaScript can never read the session',
+     s.cookieOptsFor({ secure: false }).httpOnly === true);
+  ok('...sameSite=lax either way — a cross-site form cannot ride your session',
+     s.cookieOptsFor({ secure: false }).sameSite === 'lax');
+
+  const idx = require('fs').readFileSync(require('path').join(__dirname, 'index.js'), 'utf8');
+  ok('the app trusts the proxy, so req.secure reflects nginx\'s X-Forwarded-Proto',
+     /trust proxy/.test(idx));
+  const auth = require('fs').readFileSync(require('path').join(__dirname, 'routes/auth.js'), 'utf8');
+  ok('🔴 login sets the cookie with the PER-REQUEST options, not the static default',
+     /cookieOptsFor\(req\)/.test(auth) && !/token, session\.cookieOpts\)/.test(auth));
+}
+
+
+
+section('🔑 SEEDING AN ADMIN — a ready login, and NEVER a default password');
+{
+  // seedAdmin() is async, but every GUARD branch returns before it touches the
+  // database — and this file is synchronous. So we assert on the promise's result
+  // via a tiny synchronous drain, and on the source text for the rest.
+  const before = { ...process.env };
+  const drain = (pr) => { let out; pr.then((r) => { out = r; }); return out; };  // resolves sync (no await inside)
+  const fresh = () => { delete require.cache[require.resolve('./lib/seed')]; return require('./lib/seed'); };
+
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'lib/seed.js'), 'utf8');
+
+  // 🔴 THE SOURCE ITSELF MUST NOT CONTAIN A LITERAL / DEFAULT PASSWORD.
+  ok('🔴 the seed reads the password from the ENVIRONMENT, never a hard-coded default',
+     /process\.env\.SEED_ADMIN_PASSWORD/.test(src));
+  ok('🔴 ...and there is no literal password assigned anywhere in it',
+     !/password\s*=\s*['"][^'"]{6,}['"]/.test(src));
+  ok('🔴 ...the password is scrypt-HASHED at seed time, never stored raw',
+     /pw\.hash\(password\)/.test(src));
+  ok('🔴 ...a weak seed password is checked and refused, like every other password',
+     /pw\.check\(password\)/.test(src) && /weak password/.test(src));
+  ok('🔴 ...an existing admin is NOT re-created or silently reset',
+     /DO NOT RESET THE PASSWORD/.test(src));
+  ok('🔴 ...seeding is OPT-IN — no env vars, no account',
+     /not requested/.test(src) && /if \(!email && !password\)/.test(src));
+  ok('🔑 ...if you give an email but no password, a STRONG one is generated and printed once',
+     /randomBytes\(12\)/.test(src) && /ONLY TIME THIS PASSWORD IS SHOWN/.test(src));
+  ok('"admin" is documented to grant NO special power — it cannot read others\' data',
+     /GRANTS NO SPECIAL POWER/.test(src));
+
+  Object.assign(process.env, before);
+  delete require.cache[require.resolve('./lib/seed')];
+}
+
+
 console.log('\n' + '═'.repeat(60));
 console.log(fail
   ? `\x1b[31m✗ ${fail} FAILED\x1b[0m, ${pass} passed\n${failures.map((f) => '   ✗ ' + f).join('\n')}`

@@ -14,6 +14,10 @@
  * The calculators are unaffected. They store nothing and never did.
  * ─────────────────────────────────────────────────────────────────────────────
  */
+// 🔴 FIRST LINE OF REAL CODE. Load .env before ANYTHING reads process.env —
+//    the encryption-key check runs at boot, and it must see the keys.
+require('./lib/env').loadEnv();
+
 const express = require('express');
 const cookieParser = require('cookie-parser');
 
@@ -23,6 +27,11 @@ const db = require('./lib/db');
 
 const app = express();
 app.set('trust proxy', 1);
+// 🔴 nginx is the ONLY thing in front of us, and it sets X-Forwarded-Proto.
+//    Trust it, so `req.secure` tells the truth about HTTP vs HTTPS — which is
+//    what decides whether the session cookie may carry the Secure flag.
+app.set('trust proxy', true);
+
 app.use(express.json({ limit: '256kb' }));
 app.use(cookieParser());
 
@@ -93,6 +102,10 @@ async function start() {
   cryptoLib.assertReady();
 
   if (process.env.MIGRATE === 'true') await db.migrate();
+
+  // 🔑 A seeded admin, if the operator asked for one. Opt-in, verified, and
+  //    its password is never in the code. Runs AFTER migrate so `role` exists.
+  await require('./lib/seed').seedAdmin();
 
   compliance.announce();
 

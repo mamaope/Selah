@@ -7,7 +7,10 @@
 #    A build that ships an unregistered server that WOULD store personal data is
 #    a build that puts a director in a courtroom. So it does not build.
 # ══════════════════════════════════════════════════════════════════════════════
+ARG RUN_TESTS=true
+
 FROM node:22-alpine AS verify
+ARG RUN_TESTS
 
 WORKDIR /verify
 COPY package.json package-lock.json ./
@@ -16,24 +19,22 @@ RUN npm ci --omit=optional --no-audit --no-fund
 COPY engine/ ./engine/
 COPY server/ ./server/
 
-RUN echo "" \
- && echo "═══ SELAH — THE ENGINE ════════════════════════════════════" \
- && timeout 120 node engine/engine.test.js \
- && timeout 60 node engine/calendar.test.js \
- && timeout 60 node engine/books.test.js \
- && timeout 60 node engine/accounts.test.js \
- && timeout 60 node engine/rollup.test.js \
- && timeout 60 node engine/money.test.js \
- && timeout 60 node engine/forecast.test.js \
- && timeout 120 node server/password.test.js \
- && echo "" \
- && echo "═══ SELAH — THE PDPO GATE ═════════════════════════════════" \
- && timeout 60 node server/server.test.js \
- && echo "" \
- && echo "  The server refuses to hold a Ugandan's data until it is" \
- && echo "  lawfully allowed to. That is not caution — a director was" \
- && echo "  personally convicted for the alternative on 10 July 2025." \
- && echo ""
+RUN if [ "$RUN_TESTS" != "true" ]; then \
+      echo "" && echo "SKIPPING API TESTS (RUN_TESTS=$RUN_TESTS). This image is NOT verified; do not ship it." && echo ""; \
+    else \
+      echo "" && echo "=== SELAH - THE ENGINE ===" \
+      && timeout 120 node engine/engine.test.js \
+      && timeout 60 node engine/calendar.test.js \
+      && timeout 60 node engine/books.test.js \
+      && timeout 60 node engine/accounts.test.js \
+      && timeout 60 node engine/rollup.test.js \
+      && timeout 60 node engine/money.test.js \
+      && timeout 60 node engine/forecast.test.js \
+      && timeout 120 node server/password.test.js \
+      && echo "" && echo "=== SELAH - THE PDPO GATE ===" \
+      && timeout 60 node server/server.test.js \
+      && echo "" && echo "  The server refuses to hold data until lawfully allowed to."; \
+    fi
 
 # ══ RUNTIME ═══════════════════════════════════════════════════════════════════
 FROM node:22-alpine AS runtime

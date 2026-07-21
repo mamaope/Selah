@@ -56,6 +56,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runtime
+      args:
+        RUN_TESTS: ${RUN_TESTS:-true}
     image: selah-web:latest
     container_name: selah-web
     ports:
@@ -105,6 +107,8 @@ services:
       context: .
       dockerfile: Dockerfile.api
       target: runtime
+      args:
+        RUN_TESTS: ${RUN_TESTS:-true}
     image: selah-api:latest
     container_name: selah-api
     depends_on:
@@ -161,6 +165,14 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
 
       SMS_PROVIDER_URL: ${SMS_PROVIDER_URL:-}
+
+      # ── A SEEDED ADMIN LOGIN (optional) ───────────────────────────────────
+      # Set these to create a VERIFIED account at first boot, so you can sign
+      # in without the registration/email step. Remove them once it exists.
+      # The password is never stored in the image — only hashed into the db.
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_ADMIN_KIND: ${SEED_ADMIN_KIND:-individual}
 
     read_only: true
     tmpfs:
