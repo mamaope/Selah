@@ -739,6 +739,7 @@ function booksFetch(o) {
     if (/\/shopping\/[^/]+\/items\/[^/]+\/undo$/.test(url) && m === 'POST') { opts.shopUndone = url; return json(200, { ok: true }); }
     if (/\/shopping\/[^/]+\/items\/[^/]+$/.test(url) && m === 'PATCH') { opts.shopItemEdited = JSON.parse(init.body); return json(200, { ok: true }); }
     if (/\/shopping\/[^/]+$/.test(url) && m === 'DELETE') { opts.listDeleted = url; return json(200, { ok: true }); }
+    if (/\/shopping\/[^/]+$/.test(url) && m === 'PATCH') { opts.listRenamed = JSON.parse(init.body); return json(200, { ok: true }); }
     if (/\/forecast$/.test(url)) return json(200, opts.forecast || { ok: true, comingUp: { items: [] }, suggestedBudget: { lines: [], lumpy: [] } });
     if (/\/health$/.test(url))   return json(200, opts.health || { ok: true, balances: [], netWorth: {}, emergencyFund: {}, savingsRate: {} });
     if (/accounts\/mine$/.test(url)) return json(200, { ok: true, accounts: [], types: { cash: { label: 'Cash' } } });
@@ -1996,6 +1997,13 @@ section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an
   ok('🔴 the un-priced item shows no invented number', /no known price/.test(detail));
   ok('there is a way back to all lists', !!D.querySelector('[data-action="bkCloseList"]'));
 
+  // ✏️ rename the list in place
+  const title = D.querySelector('.sl-title-edit');
+  ok('the list title is editable in place', !!title);
+  title.value = 'Weekly grocery';
+  title.dispatchEvent(new w.Event('change', { bubbles: true })); await settle();
+  ok('✏️ renaming the list PATCHes the new name', o.listRenamed && o.listRenamed.name === 'Weekly grocery');
+
   // add an item
   D.getElementById('si-label-sl1').value = 'Milk';
   await w.SelahActions.bkAddShopItem(D.querySelector('[data-action="bkAddShopItem"]')); await settle();
@@ -2050,6 +2058,24 @@ section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an
   w.confirm = () => true;
   await w.SelahActions.bkDelList({ dataset: { id: 'sl1' } }); await settle();
   ok('🔑 deleting a list DELETEs it', /\/shopping\/sl1$/.test(o.listDeleted || ''));
+}
+
+// ── THE LEDGER PUTS RECENT ENTRIES AT THE TOP ──────────────────────────────
+section('🧾 LEDGER — most recent first, and today\'s newest above today\'s older');
+{
+  const es = [
+    { id: 'e1', direction: 'out', label: 'Older today',  actual: 100, status: 'unplanned', occurredOn: '2026-07-15', createdAt: '2026-07-15T08:00:00.000Z', accountId: 'a1' },
+    { id: 'e2', direction: 'out', label: 'Newer today',  actual: 200, status: 'unplanned', occurredOn: '2026-07-15', createdAt: '2026-07-15T17:00:00.000Z', accountId: 'a1' },
+    { id: 'e3', direction: 'out', label: 'Yesterday',    actual: 300, status: 'unplanned', occurredOn: '2026-07-14', createdAt: '2026-07-14T09:00:00.000Z', accountId: 'a1' },
+  ];
+  const { w, D } = boot(booksFetch({ entries: es }));
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  const labels = [...D.querySelectorAll('#bk-ledger tbody tr td.wide')].map((td) => td.textContent);
+  ok('🔑 the latest date is at the top', labels[0] === 'Newer today' || labels[0] === 'Older today');
+  ok('🔑 within a day, the most recently recorded is above the older one', labels.indexOf('Newer today') < labels.indexOf('Older today'));
+  ok('...and yesterday sits below today', labels.indexOf('Yesterday') > labels.indexOf('Newer today'));
 }
 
 

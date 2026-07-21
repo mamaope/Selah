@@ -81,6 +81,7 @@ const shapeEntry = (e) => ({
   fromAccountId: e.from_account_id,
   toAccountId: e.to_account_id,
   templateLineId: e.template_line_id,
+  createdAt: e.created_at ? e.created_at.toISOString() : null,
 });
 
 async function entriesOf(bookId) {

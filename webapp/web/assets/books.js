@@ -370,7 +370,11 @@
    */
   let allEntries = [];
   function renderLedger() {
-    const es = [...allEntries].sort((a, b) => String(b.occurredOn || '').localeCompare(String(a.occurredOn || '')));
+    // 🔑 RECENT AT THE TOP: newest date first, and within a day the thing you just
+    //    recorded sits above the rest — so what you added a moment ago is not buried.
+    const es = [...allEntries].sort((a, b) =>
+      String(b.occurredOn || '').localeCompare(String(a.occurredOn || '')) ||
+      String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
     if (!es.length) {
       if (monthState() === 'future') {
         return '<div class="card empty" id="bk-ledger">' +
@@ -1334,7 +1338,7 @@
 
     return '<div class="card">' +
       '<div class="cardhead">' +
-        '<div class="row" style="gap:.6rem;align-items:baseline"><button class="link" data-action="bkCloseList">← All lists</button><h3>' + esc(l.name) + '</h3></div>' +
+        '<div class="row" style="gap:.6rem;align-items:baseline">' +'<button class="link" data-action="bkCloseList">← All lists</button>' +'<input class="sl-title-edit" data-id="' + esc(l.id) + '" value="' + esc(l.name) + '" aria-label="List name" style="font:inherit;font-size:1.15rem;font-weight:700;background:transparent;border:0;border-bottom:1px dashed var(--border-str);color:inherit;min-width:8rem">' +'</div>' +
         '<button class="ghost" data-action="bkDelList" data-id="' + esc(l.id) + '">Delete list</button>' +
       '</div>' +
       summary +
@@ -1398,6 +1402,16 @@
     if (!e.target || !e.target.classList.contains('si-qty-edit')) return;
     const el = e.target;
     const r = await API.editShopItem(current.id, el.dataset.list, el.dataset.id, { quantity: el.value === '' ? null : Number(el.value) });
+    if (!handle(r)) return;
+    await renderShopping();
+  });
+
+  // 🔑 rename a list in place — commit when the field loses focus / changes
+  document.addEventListener('change', async (e) => {
+    if (!e.target || !e.target.classList.contains('sl-title-edit')) return;
+    const name = e.target.value.trim();
+    if (!name) { await renderShopping(); return; }   // empty is not a rename; restore
+    const r = await API.renameList(current.id, e.target.dataset.id, name);
     if (!handle(r)) return;
     await renderShopping();
   });

@@ -64,7 +64,10 @@ async function recordPricePoint(bookId, itemKey, label, unitPrice, unit, asOf, w
  * @returns { id } or { refused } (a pricing refusal to bubble up)
  */
 async function createEntryFrom(bookId, authorId, body) {
-  const { direction, label, amount, category, accountId, fromAccountId, toAccountId, occurredOn, note, currency } = body || {};
+  const { direction, label, category, accountId, fromAccountId, toAccountId, occurredOn, note, currency } = body || {};
+  // 🔑 the money is `amount` (the Record sheet's name) OR `total` (a bought line's) —
+  //    accept both, so no caller can silently drop the sum by naming it the other thing.
+  const amount = (body && body.amount != null && body.amount !== '') ? body.amount : (body ? body.total : undefined);
   const when = occurredOn || today();
   let quantity = null, unit = null, unitPrice = null, finalTotal = Number(amount || 0);
   let categoryId = null;
@@ -635,7 +638,7 @@ router.post('/:bookId/shopping/:listId/items/:id/done', async (req, res, next) =
       label: str(item.label_enc),
       quantity: quantity != null ? quantity : (item.quantity != null ? Number(item.quantity) : undefined),
       unit: item.unit || undefined,
-      total: actualAmount,                       // what you actually paid (may move the price)
+      amount: actualAmount,                      // 🔑 what you actually paid — this is what the price book learns
       accountId,
       occurredOn: today(),
     });
@@ -696,6 +699,19 @@ router.post('/:bookId/shopping/:listId/items/:id/undo', async (req, res, next) =
     await db.query("UPDATE shopping_items SET status = 'pending', actual_enc = NULL, done_at = NULL, entry_id = NULL WHERE id = $1", [req.params.id]);
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'UPDATE', entity: 'shopping_items', entityId: req.params.id, req });
     res.json({ ok: true, note: 'Back on the list. The expense it created has been removed.' });
+  } catch (e) { next(e); }
+});
+
+/** Rename a list. */
+router.patch('/:bookId/shopping/:listId', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    if (!await listInBook(req.params.listId, req.params.bookId)) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    const name = String(req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ ok: false, error: 'NAME_REQUIRED', headline: 'A list needs a name.' });
+    await db.query('UPDATE shopping_lists SET name_enc = $1 WHERE id = $2 AND book_id = $3', [encrypt(name), req.params.listId, req.params.bookId]);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'UPDATE', entity: 'shopping_lists', entityId: req.params.listId, req });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
