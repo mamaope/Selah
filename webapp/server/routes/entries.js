@@ -327,11 +327,12 @@ router.get('/:bookId/period', async (req, res, next) => {
     );
 
     const { rows: bud } = await db.query(
-      `SELECT b.*, c.key AS category_key FROM budgets b JOIN categories c ON c.id = b.category_id
+      `SELECT b.*, c.key AS category_key, c.direction AS category_direction FROM budgets b JOIN categories c ON c.id = b.category_id
         WHERE b.book_id = $1`, [req.params.bookId]);
     const budgets = bud.map((b) => ({
       id: b.id,
       category: b.category_key, label: str(b.label_enc), amount: num(b.amount_enc),
+      direction: b.category_direction,          // so income and expense budgets are never summed together
       startsOn: iso(b.starts_on), endsOn: iso(b.ends_on),
     }));
 

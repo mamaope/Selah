@@ -331,27 +331,37 @@
    */
   function onTrack() {
     const b = lastBudget;
-    if (!b || !b.totalBudgeted) {
-      return '<p class="hint">No budget set for this period. ' +
-             '<button class="link" data-action="bkGoBudget">Set one →</button></p>';
+
+    // 🔴 The lump that only partly overlaps is flagged wherever the summary shows —
+    //    it is where a person decides they are fine, and school fees is why they are not.
+    const excluded = (b && (b.budgetsExcluded || []).length)
+      ? '<p class="src">' + b.budgetsExcluded.length + ' budget' + (b.budgetsExcluded.length === 1 ? ' is' : 's are') +
+        ' not counted here — they only partly overlap this period, and a term is not one-third of a term each month.</p>'
+      : '';
+
+    // 🔑 ON TRACK IS SPENDING AGAINST EXPECTED INCOME — not against a budget total
+    //    that muddles income and spending together. If you have not said what you
+    //    expect to earn, we cannot judge it, and we ask for it rather than invent one.
+    const income = b ? Number(b.totalIncomeBudgeted || 0) : 0;
+    if (!b || !income) {
+      return '<p class="hint">Add your <strong>expected income</strong> for this period to see whether your spending is on track. ' +
+             '<button class="link" data-action="bkGoBudget">Set the budget →</button></p>' + excluded;
     }
-    const pct = Math.round((b.totalSpent / b.totalBudgeted) * 100);
-    const over = b.totalSpent > b.totalBudgeted;
+
+    const spent = Number(b.totalSpent || 0);
+    const pct = Math.round((spent / income) * 100);
+    const over = spent > income;
     const overCats = (b.rows || []).filter((r) => r.over).length;
 
     return '<div class="ontrack ' + (over ? 'bad' : 'ok') + '">' +
       '<div class="ontrack-l">' +
         '<span class="pill ' + (over ? 'over' : 'ok') + '">' + (over ? 'Over budget' : 'On track') + '</span> ' +
-        '<strong>' + fmt(b.totalSpent) + '</strong> of ' + fmt(b.totalBudgeted) + ' budgeted' +
+        '<strong>' + fmt(spent) + '</strong> of ' + fmt(income) + ' expected income' +
         (overCats ? ' <span class="src">· ' + overCats + ' categor' + (overCats === 1 ? 'y' : 'ies') + ' over</span>' : '') +
       '</div>' +
       '<span class="bar' + (over ? ' over' : '') + '"><i style="width:' + Math.min(100, pct) + '%"></i></span>' +
       '<button class="link" data-action="bkGoBudget">See the detail →</button>' +
-    '</div>' +
-    ((b.budgetsExcluded || []).length
-      ? '<p class="src">' + b.budgetsExcluded.length + ' budget' + (b.budgetsExcluded.length === 1 ? ' is' : 's are') +
-        ' not counted here — they only partly overlap this period, and a term is not one-third of a term each month.</p>'
-      : '');
+    '</div>' + excluded;
   }
 
   A.bkGoBudget = () => A.bkTab({ dataset: { tab: 'budget' } });

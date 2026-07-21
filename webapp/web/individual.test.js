@@ -1564,7 +1564,7 @@ section('📆 THE MONTH TAB — what moved, and one line telling you if you are 
   const budgets = [{ id: 'g1', category: 'rent', amount: 800_000, startsOn: '2026-07-01', endsOn: '2026-07-31' }];
   const budget = {
     rows: [{ category: 'rent', budgeted: 800_000, spent: 850_000, variance: -50_000, over: true, overBy: 50_000, percentUsed: 106 }],
-    totalBudgeted: 800_000, totalSpent: 850_000, over: true,
+    totalBudgeted: 800_000, totalExpenseBudgeted: 800_000, totalIncomeBudgeted: 800_000, totalSpent: 850_000, over: true,
     budgetsExcluded: [], howBudgetsWereCounted: 'Nothing was divided.', unplannedSpending: 0,
   };
   const { w, D } = boot(booksFetch({ budgets, budget }));
@@ -1582,8 +1582,8 @@ section('📆 THE MONTH TAB — what moved, and one line telling you if you are 
   // 🔑 THE ONE LINE THAT COMES BACK.
   const ot = D.querySelector('#bk-summary .ontrack');
   ok('🔑 the month summary carries ONE on-track line', !!ot);
-  ok('...it says you are over budget, and by how much you have spent',
-     /Over budget/.test(ot.textContent) && /850,000/.test(ot.textContent) && /800,000/.test(ot.textContent));
+  ok('...it says spending is over the expected income, and by how much',
+     /Over budget/.test(ot.textContent) && /850,000/.test(ot.textContent) && /800,000/.test(ot.textContent) && /expected income/.test(ot.textContent));
   ok('...it is styled as bad, not neutral', ot.classList.contains('bad'));
   ok('...and one tap gets you the detail', !!ot.querySelector('[data-action="bkGoBudget"]'));
 
@@ -1594,7 +1594,7 @@ section('📆 THE MONTH TAB — what moved, and one line telling you if you are 
 {
   // On track, and under.
   const budget = { rows: [{ category: 'food', budgeted: 400_000, spent: 120_000, variance: 280_000, over: false, percentUsed: 30 }],
-    totalBudgeted: 400_000, totalSpent: 120_000, over: false, budgetsExcluded: [], howBudgetsWereCounted: 'x' };
+    totalBudgeted: 400_000, totalExpenseBudgeted: 400_000, totalIncomeBudgeted: 500_000, totalSpent: 120_000, over: false, budgetsExcluded: [], howBudgetsWereCounted: 'x' };
   const { w, D } = boot(booksFetch({ budgets: [{ id: 'g1', category: 'food', amount: 400_000, startsOn: '2026-07-01', endsOn: '2026-07-31' }], budget }));
   await settle();
   await w.SelahActions.goBooks(); await settle();
@@ -1612,16 +1612,16 @@ section('📆 THE MONTH TAB — what moved, and one line telling you if you are 
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
 
   const sum = D.getElementById('bk-summary').textContent;
-  ok('with no budget set, the summary says so rather than showing a meaningless bar',
-     /No budget set for this period/.test(sum));
-  ok('...and offers one tap to set one', !!D.querySelector('#bk-summary [data-action="bkGoBudget"]'));
+  ok('🔑 with no expected income, the summary asks for it rather than a meaningless bar',
+     /expected income/.test(sum) && !D.querySelector('#bk-summary .ontrack'));
+  ok('...and offers one tap to set the budget', !!D.querySelector('#bk-summary [data-action="bkGoBudget"]'));
 }
 
 {
   // 🔴 The excluded lump is flagged on the MONTH screen too — because that is where
   //    a person decides they are fine, and school fees is why they are not.
   const budget = { rows: [{ category: 'rent', budgeted: 800_000, spent: 700_000, variance: 100_000, over: false, percentUsed: 88 }],
-    totalBudgeted: 800_000, totalSpent: 700_000, over: false,
+    totalBudgeted: 800_000, totalExpenseBudgeted: 800_000, totalIncomeBudgeted: 800_000, totalSpent: 700_000, over: false,
     budgetsExcluded: [{ category: 'school_fees', amount: 1_200_000, startsOn: '2026-05-01', endsOn: '2026-08-31' }],
     whyExcluded: 'x', howBudgetsWereCounted: 'x' };
   const { w, D } = boot(booksFetch({ budgets: [], budget }));

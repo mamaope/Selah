@@ -194,6 +194,21 @@ t('🔑 SPENDING YOU NEVER PLANNED FOR is called out — usually the most intere
   assert.strictEqual(r.unplannedSpending, 8_000 + 10_000 + 60_000);   // transport, airtime, family
 });
 
+t('🔑 INCOME AND EXPENSE BUDGETS ARE NEVER SUMMED — spending is judged against income', () => {
+  // rent 800k (out) + food 400k (out) budgeted to SPEND; salary 3,000,000 (in) expected to EARN
+  const SALARY = { category: 'salary', amount: 3_000_000, direction: 'in', startsOn: '2026-07-01', endsOn: '2026-07-31' };
+  const r = R.budgetVsActual([JULY_RENT, JULY_FOOD, SALARY], JULY, '2026-07-01', '2026-07-31');
+  assert.strictEqual(r.totalExpenseBudgeted, 1_200_000, 'expense budget is rent + food only');
+  assert.strictEqual(r.totalIncomeBudgeted, 3_000_000, 'income budget is the salary, kept separate');
+  assert.strictEqual(r.totalBudgeted, 1_200_000, '"budgeted" is the expense plan, NOT income + expense (4,200,000)');
+});
+
+t('a budget with no direction is treated as spending — nothing regresses', () => {
+  const r = R.budgetVsActual([JULY_RENT, JULY_FOOD], JULY, '2026-07-01', '2026-07-31');
+  assert.strictEqual(r.totalExpenseBudgeted, 1_200_000);
+  assert.strictEqual(r.totalIncomeBudgeted, 0);
+});
+
 t('a category budgeted but not spent still appears — that is the point of a budget', () => {
   const medical = { category: 'medical', amount: 100_000, startsOn: '2026-07-01', endsOn: '2026-07-31' };
   const r = R.budgetVsActual([medical], JULY, '2026-07-01', '2026-07-31');

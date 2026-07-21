@@ -221,7 +221,7 @@ function budgetVsActual(budgets, entries, from, to) {
   const planned = {};
   for (const g of inside) {
     const k = g.category;
-    planned[k] = planned[k] || { category: k, budgeted: 0, instances: 0 };
+    planned[k] = planned[k] || { category: k, budgeted: 0, instances: 0, direction: g.direction === 'in' ? 'in' : 'out' };
     planned[k].budgeted += UGX(g.amount);
     planned[k].instances += 1;
   }
@@ -255,12 +255,19 @@ function budgetVsActual(budgets, entries, from, to) {
   }
   rows.sort((x, y) => y.actual - x.actual);
 
-  const totalBudgeted = Object.values(planned).reduce((s, p) => s + p.budgeted, 0);
+  // 🔑 BUDGETS HAVE A DIRECTION, AND THE TWO MUST NOT BE ADDED TOGETHER.
+  //    What you plan to SPEND and what you expect to EARN are different questions;
+  //    summing them and comparing spending to the total is meaningless.
+  const totalExpenseBudgeted = Object.values(planned).filter((p) => p.direction !== 'in').reduce((s, p) => s + p.budgeted, 0);
+  const totalIncomeBudgeted  = Object.values(planned).filter((p) => p.direction === 'in').reduce((s, p) => s + p.budgeted, 0);
+  const totalBudgeted = totalExpenseBudgeted;   // "budgeted" means what you planned to spend
 
   return {
     from: iso(a), to: iso(b),
     rows,
     totalBudgeted,
+    totalExpenseBudgeted,
+    totalIncomeBudgeted,               // what you expect to earn — the spending-is-on-track denominator
     totalSpent: act.spend,
     totalIncome: act.income,
     variance: totalBudgeted - act.spend,
