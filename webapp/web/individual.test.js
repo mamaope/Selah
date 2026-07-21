@@ -736,6 +736,9 @@ function booksFetch(o) {
     if (/\/shopping\/[^/]+\/items\/[^/]+\/done$/.test(url) && m === 'POST') { opts.shopDone = JSON.parse(init.body); return json(opts.shopDoneStatus || 200, opts.shopDoneResponse || { ok: true, entryId: 'e9', total: 6000 }); }
     if (/\/shopping\/[^/]+\/items\/[^/]+$/.test(url) && m === 'DELETE') { opts.shopItemDeleted = url; return json(200, { ok: true }); }
     if (/\/shopping\/[^/]+\/items$/.test(url) && m === 'POST') { opts.shopItemAdded = JSON.parse(init.body); return json(200, { ok: true, id: 'si1' }); }
+    if (/\/shopping\/[^/]+\/items\/[^/]+\/undo$/.test(url) && m === 'POST') { opts.shopUndone = url; return json(200, { ok: true }); }
+    if (/\/shopping\/[^/]+\/items\/[^/]+$/.test(url) && m === 'PATCH') { opts.shopItemEdited = JSON.parse(init.body); return json(200, { ok: true }); }
+    if (/\/shopping\/[^/]+$/.test(url) && m === 'DELETE') { opts.listDeleted = url; return json(200, { ok: true }); }
     if (/\/forecast$/.test(url)) return json(200, opts.forecast || { ok: true, comingUp: { items: [] }, suggestedBudget: { lines: [], lumpy: [] } });
     if (/\/health$/.test(url))   return json(200, opts.health || { ok: true, balances: [], netWorth: {}, emergencyFund: {}, savingsRate: {} });
     if (/accounts\/mine$/.test(url)) return json(200, { ok: true, accounts: [], types: { cash: { label: 'Cash' } } });
@@ -1968,28 +1971,42 @@ section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an
 {
   // a list with one priced item (sugar, 2 Kg, known 1000) and one un-priced (soap)
   const S = require('../engine/shopping');
-  const plan = S.planList(
+  const mkPlan = () => S.planList(
     [{ id: 'i1', label: 'Sugar', quantity: 2, unit: 'Kg', status: 'pending' },
      { id: 'i2', label: 'Soap',  quantity: 1, status: 'pending' }],
     { sugar: { unitPrice: 1000, unit: 'Kg' } });
-  const lists = [{ id: 'sl1', name: 'Grocery', ...plan }];
-
-  const o = { shoppingLists: lists };
+  const o = { shoppingLists: [{ id: 'sl1', name: 'Grocery', ...mkPlan() }] };
   const { w, D } = boot(booksFetch(o));
   await settle();
   await w.SelahActions.goBooks(); await settle();
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
   await w.SelahActions.bkTab({ dataset: { tab: 'shopping' } }); await settle();
 
-  const pane = D.getElementById('shopping-lists').textContent;
-  ok('the list and its items are shown', /Grocery/.test(pane) && /Sugar/.test(pane) && /Soap/.test(pane));
-  ok('🔑 the priced item shows an estimate (2 × 1,000 = 2,000)', /2,000/.test(pane));
-  ok('🔴 the un-priced item shows no invented number', /no known price/.test(pane));
+  // 🔑 MASTER: the tab shows the list of lists, not the items
+  const index = D.getElementById('shopping-lists').textContent;
+  ok('the tab shows the list of lists', /Grocery/.test(index));
+  ok('🔑 the index does NOT spill every item onto the page', !/Sugar/.test(index) && !/Soap/.test(index));
+  ok('...it summarises progress instead', /0 of 2 bought/.test(index));
+
+  // 🔑 DETAIL: open the list → now we see its items
+  await w.SelahActions.bkOpenList(D.querySelector('[data-action="bkOpenList"]')); await settle();
+  const detail = D.getElementById('shopping-lists').textContent;
+  ok('opening a list shows its items', /Sugar/.test(detail) && /Soap/.test(detail));
+  ok('🔑 the priced item shows an estimate (2 × 1,000 = 2,000)', /2,000/.test(detail));
+  ok('🔴 the un-priced item shows no invented number', /no known price/.test(detail));
+  ok('there is a way back to all lists', !!D.querySelector('[data-action="bkCloseList"]'));
 
   // add an item
   D.getElementById('si-label-sl1').value = 'Milk';
   await w.SelahActions.bkAddShopItem(D.querySelector('[data-action="bkAddShopItem"]')); await settle();
   ok('adding an item POSTs its label', o.shopItemAdded && o.shopItemAdded.label === 'Milk');
+
+  // ✏️ edit a pending item's quantity in place
+  const qtyEdit = D.querySelector('.si-qty-edit');
+  ok('a pending item exposes an editable quantity', !!qtyEdit);
+  qtyEdit.value = '3';
+  qtyEdit.dispatchEvent(new w.Event('change', { bubbles: true })); await settle();
+  ok('✏️ editing the quantity PATCHes it', o.shopItemEdited && o.shopItemEdited.quantity === 3);
 
   // mark bought → reveals the "what did you pay" form
   w.SelahActions.bkShopMark({ dataset: { list: 'sl1', id: 'i1' } }); await settle();
@@ -2004,6 +2021,35 @@ section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an
   D.getElementById('acct-i1').value = 'a1';
   await w.SelahActions.bkShopDone({ dataset: { list: 'sl1', id: 'i1' } }); await settle();
   ok('🔑 buying POSTs the account and the actual amount', o.shopDone && o.shopDone.accountId === 'a1' && o.shopDone.actualAmount === 2100);
+}
+
+// ── UNDO A PURCHASE, and DELETE A LIST ─────────────────────────────────────
+{
+  const S = require('../engine/shopping');
+  // one item already bought (has an actual + a linked entry)
+  const plan = S.planList(
+    [{ id: 'i1', label: 'Sugar', quantity: 2, unit: 'Kg', status: 'done', actualAmount: 2100, entryId: 'e9' }],
+    { sugar: { unitPrice: 1000, unit: 'Kg' } });
+  const o = { shoppingLists: [{ id: 'sl1', name: 'Grocery', ...plan }] };
+  const { w, D } = boot(booksFetch(o));
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  await w.SelahActions.bkTab({ dataset: { tab: 'shopping' } }); await settle();
+  await w.SelahActions.bkOpenList(D.querySelector('[data-action="bkOpenList"]')); await settle();
+
+  // a bought item offers Undo, and shows what was paid
+  const detail = D.getElementById('shopping-lists').textContent;
+  ok('a bought item shows the actual amount', /2,100/.test(detail));
+  ok('🔑 a bought item offers Undo', !!D.querySelector('[data-action="bkShopUndo"]'));
+
+  await w.SelahActions.bkShopUndo({ dataset: { list: 'sl1', id: 'i1' } }); await settle();
+  ok('🔑 undo POSTs to the undo endpoint', /\/shopping\/sl1\/items\/i1\/undo$/.test(o.shopUndone || ''));
+
+  // delete the whole list — guarded by a confirm, which we auto-approve here
+  w.confirm = () => true;
+  await w.SelahActions.bkDelList({ dataset: { id: 'sl1' } }); await settle();
+  ok('🔑 deleting a list DELETEs it', /\/shopping\/sl1$/.test(o.listDeleted || ''));
 }
 
 

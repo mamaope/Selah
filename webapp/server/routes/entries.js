@@ -651,4 +651,64 @@ router.post('/:bookId/shopping/:listId/items/:id/done', async (req, res, next) =
   } catch (e) { next(e); }
 });
 
+/** Change a still-PENDING item — its label, how many, or the unit. A bought item is
+ *  a settled fact and is not edited here; undo it first if it was a mistake. */
+router.patch('/:bookId/shopping/:listId/items/:id', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    if (!await listInBook(req.params.listId, req.params.bookId)) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    const { rows: it } = await db.query('SELECT * FROM shopping_items WHERE id = $1 AND list_id = $2', [req.params.id, req.params.listId]);
+    if (!it.length) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    if (it[0].status === 'done') return res.status(400).json({ ok: false, error: 'ALREADY_BOUGHT',
+      headline: 'This item is already bought.', why: ['A purchase is a settled fact. If it was a mistake, undo it first, then change it.'] });
+
+    const sets = [], vals = []; let n = 1;
+    if (req.body?.label != null) { const l = String(req.body.label).trim(); if (l) { sets.push('label_enc = $' + n++); vals.push(encrypt(l)); } }
+    if ('quantity' in (req.body || {})) { sets.push('quantity = $' + n++); vals.push(req.body.quantity == null || req.body.quantity === '' ? null : Number(req.body.quantity)); }
+    if ('unit' in (req.body || {})) { sets.push('unit = $' + n++); vals.push(req.body.unit || null); }
+    if (!sets.length) return res.json({ ok: true });   // nothing to change is not an error
+    vals.push(req.params.id);
+    await db.query('UPDATE shopping_items SET ' + sets.join(', ') + ' WHERE id = $' + n, vals);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'UPDATE', entity: 'shopping_items', entityId: req.params.id, req });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/**
+ * 🔑 UNDO A PURCHASE — because a mis-tap must not leave phantom money on the books.
+ *
+ * The item goes back to PENDING and the expense it created is DELETED. A purchase
+ * that did not happen is not money, and Selah will not leave it counted. (The price
+ * we learned from it stays: you did observe that price. Re-buy to record a new one.)
+ */
+router.post('/:bookId/shopping/:listId/items/:id/undo', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    if (!await listInBook(req.params.listId, req.params.bookId)) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    const { rows: it } = await db.query('SELECT * FROM shopping_items WHERE id = $1 AND list_id = $2', [req.params.id, req.params.listId]);
+    if (!it.length) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    if (it[0].status !== 'done') return res.json({ ok: true });   // already pending
+
+    if (it[0].entry_id) {
+      await db.query('DELETE FROM entries WHERE id = $1 AND book_id = $2', [it[0].entry_id, req.params.bookId]);
+      await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'DELETE', entity: 'entries', entityId: it[0].entry_id, req });
+    }
+    await db.query("UPDATE shopping_items SET status = 'pending', actual_enc = NULL, done_at = NULL, entry_id = NULL WHERE id = $1", [req.params.id]);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'UPDATE', entity: 'shopping_items', entityId: req.params.id, req });
+    res.json({ ok: true, note: 'Back on the list. The expense it created has been removed.' });
+  } catch (e) { next(e); }
+});
+
+/** Delete a whole list. Its items go with it — but any REAL expenses they created
+ *  stay on the books (they are money that moved). The plan is gone; the record is not. */
+router.delete('/:bookId/shopping/:listId', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    if (!await listInBook(req.params.listId, req.params.bookId)) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    await db.query('DELETE FROM shopping_lists WHERE id = $1 AND book_id = $2', [req.params.listId, req.params.bookId]);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'DELETE', entity: 'shopping_lists', entityId: req.params.listId, req });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

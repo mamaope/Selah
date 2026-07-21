@@ -1249,6 +1249,10 @@
   // 🔑 The estimate is only ever the sum of prices Selah ALREADY KNOWS. An item
   //    it has never priced shows "—", not a guess. Marking done routes through the
   //    same expense path as the Record sheet, so the real price is what sticks.
+  //
+  // Master → detail: the tab shows your lists; open one to work on its items.
+
+  let shopOpenList = null;   // id of the list currently open, or null for the index
 
   const acctOpts = () =>
     '<option value="">— which account? —</option>' +
@@ -1259,21 +1263,45 @@
     const r = await API.shopping(current.id);
     if (!handle(r)) return;
     const lists = (r.ok && r.lists) || [];
-    if (!lists.length) {
-      box.innerHTML = '<p class="muted">No lists yet. Add one above — say, “Grocery”.</p>';
-      return;
-    }
-    box.innerHTML = lists.map(renderList).join('');
+
+    // a list that was open but is now gone (deleted) falls back to the index
+    const open = shopOpenList && lists.find((l) => l.id === shopOpenList);
+    if (open) { box.innerHTML = renderDetail(open); return; }
+    shopOpenList = null;
+
+    if (!lists.length) { box.innerHTML = '<p class="muted">No lists yet. Add one above — say, “Grocery”.</p>'; return; }
+    box.innerHTML =
+      '<div class="tablewrap"><table class="t">' +
+        '<thead><tr><th>List</th><th>Progress</th><th class="num">Still to buy</th><th></th></tr></thead>' +
+        '<tbody>' + lists.map(renderIndexRow).join('') + '</tbody>' +
+      '</table></div>';
   }
 
-  function renderList(l) {
+  // one row in the index of lists
+  function renderIndexRow(l) {
+    const c = l.counts || {};
+    return '<tr>' +
+      '<td><button class="link" data-action="bkOpenList" data-id="' + esc(l.id) + '">' + esc(l.name) + '</button></td>' +
+      '<td class="muted">' + esc(c.done || 0) + ' of ' + esc(c.total || 0) + ' bought' +
+        (l.unpricedCount ? ' · ' + esc(l.unpricedCount) + ' un-priced' : '') + '</td>' +
+      '<td class="num">~' + fmt(l.remainingEstimate) + '</td>' +
+      '<td><button class="ghost" data-action="bkOpenList" data-id="' + esc(l.id) + '">Open →</button></td>' +
+    '</tr>';
+  }
+
+  // the items of one open list
+  function renderDetail(l) {
     const rows = (l.rows || []).map((it) => {
       const done = it.status === 'done';
       const est = done
         ? '<span class="saved">✓ ' + fmt(it.actualAmount) + '</span>'
         : (it.estimate == null ? '<span class="muted">—</span>' : '~' + fmt(it.estimate));
+      // pending qty is editable in place; a bought qty is a settled fact
+      const qtyCell = done
+        ? '<td class="num">' + esc(it.quantity) + '</td>'
+        : '<td class="num"><input type="number" class="si-qty-edit" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '" value="' + esc(it.quantity) + '" style="max-width:5rem"></td>';
       const action = done
-        ? '<span class="muted">bought</span>'
+        ? '<button class="ghost" data-action="bkShopUndo" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Undo</button>'
         : '<button class="ghost" data-action="bkShopMark" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Mark bought</button>' +
           ' <button class="ghost" data-action="bkDelShopItem" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '" aria-label="Remove">✕</button>';
       const doneForm =
@@ -1291,7 +1319,7 @@
         '</td></tr>';
       return '<tr' + (done ? ' class="muted"' : '') + '>' +
         '<td>' + esc(it.label) + '</td>' +
-        '<td class="num">' + esc(it.quantity) + '</td>' +
+        qtyCell +
         '<td>' + esc(it.unit || '') + '</td>' +
         '<td class="num">' + est + '</td>' +
         '<td>' + action + '</td>' +
@@ -1305,7 +1333,10 @@
       (l.unpricedCount ? ' · ' + esc(l.unpricedCount) + ' with no known price' : '') + '</p>';
 
     return '<div class="card">' +
-      '<div class="cardhead"><h3>' + esc(l.name) + '</h3></div>' +
+      '<div class="cardhead">' +
+        '<div class="row" style="gap:.6rem;align-items:baseline"><button class="link" data-action="bkCloseList">← All lists</button><h3>' + esc(l.name) + '</h3></div>' +
+        '<button class="ghost" data-action="bkDelList" data-id="' + esc(l.id) + '">Delete list</button>' +
+      '</div>' +
       summary +
       '<div class="tablewrap"><table class="t">' +
         '<thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Estimate</th><th></th></tr></thead>' +
@@ -1320,6 +1351,9 @@
     '</div>';
   }
 
+  A.bkOpenList  = (el) => { shopOpenList = el.dataset.id; renderShopping(); };
+  A.bkCloseList = ()   => { shopOpenList = null; renderShopping(); };
+
   A.bkAddList = async () => {
     const name = $('sl-name').value.trim();
     if (!name) { $('sl-msg').textContent = 'Give the list a name.'; return; }
@@ -1327,6 +1361,15 @@
     if (!handle(r)) return;
     if (!r.ok) { $('sl-msg').textContent = r.headline || 'That did not work.'; return; }
     $('sl-name').value = ''; $('sl-msg').innerHTML = '<span class="saved">✓ Added.</span>';
+    shopOpenList = r.id || null;   // drop straight into the new list
+    await renderShopping();
+  };
+
+  A.bkDelList = async (el) => {
+    if (typeof confirm === 'function' && !confirm('Delete this whole list? Anything you already bought stays recorded as an expense.')) return;
+    const r = await API.delList(current.id, el.dataset.id);
+    if (!handle(r)) return;
+    shopOpenList = null;
     await renderShopping();
   };
 
@@ -1350,6 +1393,15 @@
     await renderShopping();
   };
 
+  // 🔑 edit a pending item's quantity in place — the estimate re-computes on reload
+  document.addEventListener('change', async (e) => {
+    if (!e.target || !e.target.classList.contains('si-qty-edit')) return;
+    const el = e.target;
+    const r = await API.editShopItem(current.id, el.dataset.list, el.dataset.id, { quantity: el.value === '' ? null : Number(el.value) });
+    if (!handle(r)) return;
+    await renderShopping();
+  });
+
   // Reveal the "what did you pay" form for one item.
   A.bkShopMark = (el) => {
     const row = $('done-' + el.dataset.id);
@@ -1372,6 +1424,14 @@
     if (!r.ok) { if (msg) msg.textContent = r.headline || 'That did not work.'; return; }
     await renderShopping();
     await refresh();   // the new expense belongs in the month total too
+  };
+
+  // 🔑 undo a mistaken purchase — the expense it created is removed too
+  A.bkShopUndo = async (el) => {
+    const r = await API.shopUndo(current.id, el.dataset.list, el.dataset.id);
+    if (!handle(r)) return;
+    await renderShopping();
+    await refresh();   // the reversed expense leaves the month total
   };
 
 })();
