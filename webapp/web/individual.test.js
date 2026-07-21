@@ -768,7 +768,7 @@ function booksFetch(o) {
     stats[el.querySelector('.k').textContent.trim()] = el.querySelector('.v').textContent.trim();
   });
   ok('🔴 THE TOTALS READ ZERO — nobody has been paid, and the app does not pretend otherwise',
-     stats['Money in'] === '0' && stats['Money out'] === '0' && stats['Net'] === '0');
+     stats['Income'] === '0' && stats['Expense'] === '0' && stats['Net'] === '0');
   ok('🔴 ...and 2,500,000 appears in NO confirmed figure',
      Object.values(stats).every((v) => !/2,500,000|1,700,000/.test(v)));
 
@@ -820,7 +820,7 @@ function booksFetch(o) {
   ok('🔑 ...and it says WHY we keep it', /fact destroyed/.test(sum));
   const st = {};
   D.querySelectorAll('#bk-summary .stat').forEach((el) => { st[el.querySelector('.k').textContent.trim()] = el.querySelector('.v').textContent.trim(); });
-  ok('🔴 ...and the income still reads ZERO', st['Money in'] === '0');
+  ok('🔴 ...and the income still reads ZERO', st['Income'] === '0');
 }
 
 // ── 🔴 THE SCHOOL FEES LINE ────────────────────────────────────────────────
@@ -1064,8 +1064,8 @@ section('🧭 FINDING YOUR WAY — the app was unnavigable, and that is a bug');
   ok('🔑 the Budget tab has TWO tables — money in, and money out',
      D.querySelectorAll('#bk-pane-budget table.t').length === 2);
   ok('...and each says which question it answers',
-     heads.some((h) => /Money in — what you expect/.test(h)) &&
-     heads.some((h) => /Money out — your budget/.test(h)));
+     heads.some((h) => /Income — what you expect/.test(h)) &&
+     heads.some((h) => /Expense — your budget/.test(h)));
 
   const [tin, tout] = [...D.querySelectorAll('#bk-pane-budget table.t')];
   ok('the income table asks for what you EXPECT and shows what was RECEIVED',
@@ -1362,7 +1362,7 @@ section('🎨 THE DESIGN CONTRACT — hierarchy, one primary action, no blank sc
   const h2 = D.querySelector('#view-books .viewhead h2');
   ok('every screen has ONE headline that says what it is', !!h2 && h2.textContent.trim() === 'My Books');
   ok('...and a lede that says what it is FOR',
-     /A Book is where your money in and money out live/.test(D.querySelector('#view-books .lede').textContent));
+     /A Book is where your income and expenses live/.test(D.querySelector('#view-books .lede').textContent));
 
   // 2. ONE PRIMARY ACTION PER SCREEN. Two primaries is a question, not an interface.
   const primaries = [...D.querySelectorAll('#view-books button.primary')].filter((b) => !b.closest('[hidden]'));
@@ -1391,7 +1391,7 @@ section('🎨 THE DESIGN CONTRACT — hierarchy, one primary action, no blank sc
   await w.SelahActions.goBooks(); await settle();
   const e = D.querySelector('#view-books .empty');
   ok('🔴 an empty Books screen is not blank — it explains itself', !!e);
-  ok('...it says WHAT a Book is', /A Book holds your money in and money out/.test(e.textContent));
+  ok('...it says WHAT a Book is', /A Book holds your income and expenses/.test(e.textContent));
   ok('🔑 ...and gives ONE tap to get started — no name to invent',
      !!e.querySelector('[data-action="bkQuickHome"]'));
 

@@ -88,7 +88,7 @@
         '<div class="card empty">' +
           '<div class="ico">📕</div>' +
           '<h3>No Books yet</h3>' +
-          '<p>A Book holds your money in and money out. Start with one called <strong>Home</strong> — ' +
+          '<p>A Book holds your income and expenses. Start with one called <strong>Home</strong> — ' +
           'you can add a shop, rentals or a build later.</p>' +
           '<button class="primary" data-action="bkQuickHome">Create my Home Book</button>' +
         '</div>';
@@ -283,8 +283,8 @@
       '<div class="card">' +
         '<h3>' + esc(monthLabel()) + (monthState() === 'past' ? '' : ' so far') + '</h3>' +
         '<div class="stats">' +
-          stat('Money in', fmt(s.confirmedIn)) +
-          stat('Money out', fmt(s.confirmedOut)) +
+          stat('Income', fmt(s.confirmedIn)) +
+          stat('Expense', fmt(s.confirmedOut)) +
           stat('Net', fmt(s.net), s.net < 0 ? 'bad' : '') +
           stat('Not yet confirmed', s.unconfirmedCount + ' line' + (s.unconfirmedCount === 1 ? '' : 's'), 'muted') +
         '</div>' +
@@ -508,7 +508,7 @@
       const IN = dir === 'in';
 
       return '<div class="cardhead" style="margin-top:1rem">' +
-          '<h3>' + (IN ? 'Money in — what you expect' : 'Money out — your budget') + '</h3>' +
+          '<h3>' + (IN ? 'Income — what you expect' : 'Expense — your budget') + '</h3>' +
         '</div>' +
         '<div class="tablewrap"><table class="t"><thead><tr>' +
           '<th>Category</th>' +
@@ -606,7 +606,7 @@
 
       '<div class="row" style="margin-top:.8rem">' +
         '<input type="text" id="cat-new" placeholder="A new category — school run, rent for the shop…" style="flex:1;min-width:10rem">' +
-        '<select id="cat-dir"><option value="out">Money out</option><option value="in">Money in</option></select>' +
+        '<select id="cat-dir"><option value="out">Expense</option><option value="in">Income</option></select>' +
         '<label class="chk"><input type="checkbox" id="cat-lumpy"> not every month</label>' +
         '<button class="ghost" data-action="catAdd">Add category</button>' +
       '</div>' +
