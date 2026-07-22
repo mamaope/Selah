@@ -1,0 +1,118 @@
+/**
+ * SELAH — SAVINGS & RESILIENCE
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 🔑 SAVINGS IS NOT A NEW POT. It is a lens on money you already track.
+ *
+ * Your accounts already say what they are — liquid or not, asset or debt. "Saving"
+ * is money sitting in an asset account you have not spent. So this module does not
+ * invent a parallel ledger; it reads your balances and answers two questions a
+ * saver actually asks:
+ *
+ *   1. HOW LONG WOULD I LAST?  — runway: liquid savings ÷ what a month costs you.
+ *   2. HOW AM I DOING, AND WHAT IS NEXT?  — a resilience ladder you climb rung by
+ *      rung: no cushion → one month → three → six → a year and into investing.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 🔴 THE RUNGS ARE EARNED, AND HONEST.
+ *
+ * A rung is reached only by money that is actually liquid and actually there. Land
+ * you cannot eat next month, and a fixed deposit is locked — the accounts engine
+ * already knows this, and we defer to it. We never celebrate a cushion built from
+ * money you cannot reach, and if we do not yet know what a month costs you, we say
+ * the runway is unknown rather than divide by zero and hand you a proud, empty
+ * number. The gamification motivates a real thing or it motivates nothing.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+const { UGX } = require('./engine');
+
+// The ladder. Each rung is a number of months of expenses covered by LIQUID money.
+const RUNGS = [
+  { key: 'none',  label: 'No cushion yet',        atMonths: 0,
+    blurb: 'Every shock lands straight on you. The first month of runway is the biggest one you will ever build.' },
+  { key: 'one',   label: 'One month',             atMonths: 1,
+    blurb: 'One month between you and a bad week. Aim for three.' },
+  { key: 'three', label: 'Three months',          atMonths: 3,
+    blurb: 'Thin, but standing. Most emergencies are survivable from here.' },
+  { key: 'six',   label: 'Six months',            atMonths: 6,
+    blurb: 'Solid. A lost job or a big bill will not sink you.' },
+  { key: 'year',  label: 'A year — and investing', atMonths: 12,
+    blurb: 'Beyond a buffer. Money past this point is money that can be put to work.' },
+];
+
+/**
+ * Where are you on the ladder, and what does the next rung cost?
+ * @param months            runway in months (liquid ÷ monthly outgoings), or null
+ * @param monthlyOutgoings  what a month costs you (minor units), for "how much more"
+ */
+function resilience(months, monthlyOutgoings) {
+  const m = Number(months) || 0;
+  const out = UGX(monthlyOutgoings);
+
+  // current rung = the highest one you have actually reached
+  let idx = 0;
+  for (let i = 0; i < RUNGS.length; i++) if (m >= RUNGS[i].atMonths) idx = i;
+
+  const current = RUNGS[idx];
+  const next = RUNGS[idx + 1] || null;
+  const needMore = next && out > 0 ? UGX((next.atMonths - m) * out) : null;
+
+  return {
+    level: idx,
+    maxLevel: RUNGS.length - 1,
+    key: current.key,
+    label: current.label,
+    blurb: current.blurb,
+    months: Math.round(m * 10) / 10,
+    next: next
+      ? { key: next.key, label: next.label, atMonths: next.atMonths, needMore }
+      : null,                                  // null = top of the ladder
+    ladder: RUNGS.map((r, i) => ({
+      key: r.key, label: r.label, atMonths: r.atMonths, reached: i <= idx, current: i === idx,
+    })),
+  };
+}
+
+/**
+ * The whole savings picture, from account balances and what a month costs.
+ * Never refuses: if a month's cost is unknown, it still shows what you hold and
+ * simply says the runway cannot be computed yet.
+ *
+ * @param balances          [{ name, type, side, liquid, computed, currency }]
+ * @param monthlyOutgoings  minor units, or 0/undefined if not yet known
+ */
+function overview(balances, monthlyOutgoings) {
+  const bs = Array.isArray(balances) ? balances : [];
+  const out = UGX(monthlyOutgoings);
+
+  const assets = bs.filter((b) => b.side === 'asset');
+  const liquidAccounts   = assets.filter((b) => b.liquid);
+  const lockedAccounts   = assets.filter((b) => !b.liquid);
+
+  const liquid   = liquidAccounts.reduce((a, b) => a + UGX(b.computed), 0);
+  const longTerm = lockedAccounts.reduce((a, b) => a + UGX(b.computed), 0);
+
+  const knowMonthly = out > 0;
+  const months = knowMonthly && liquid > 0 ? liquid / out
+               : knowMonthly ? 0
+               : null;
+
+  const shape = (b) => ({ name: b.name, type: b.type, amount: UGX(b.computed), liquid: Boolean(b.liquid) });
+
+  return {
+    liquid,                                    // the buffer — reachable next month
+    longTerm,                                  // locked away or working (land, fixed deposits, shares…)
+    totalSaved: liquid + longTerm,
+    monthlyOutgoings: out,
+    knowMonthly,
+    runwayMonths: months != null ? Math.round(months * 10) / 10 : null,
+    resilience: months != null ? resilience(months, out) : null,
+    liquidAccounts: liquidAccounts.map(shape),
+    longTermAccounts: lockedAccounts.map(shape),
+    // 🔴 said out loud when we cannot answer the runway question
+    note: knowMonthly
+      ? null
+      : 'Confirm a month of spending in your Books, and Selah can tell you how long your savings would last.',
+  };
+}
+
+module.exports = { RUNGS, resilience, overview };

@@ -743,6 +743,7 @@ function booksFetch(o) {
     if (/\/shopping\/[^/]+$/.test(url) && m === 'PATCH') { opts.listRenamed = JSON.parse(init.body); return json(200, { ok: true }); }
     if (/\/forecast$/.test(url)) return json(200, opts.forecast || { ok: true, comingUp: { items: [] }, suggestedBudget: { lines: [], lumpy: [] } });
     if (/\/health$/.test(url))   return json(200, opts.health || { ok: true, balances: [], netWorth: {}, emergencyFund: {}, savingsRate: {} });
+    if (/\/savings$/.test(url))  return json(200, opts.savings || { ok: true, totalSaved: 0 });
     if (/accounts\/mine$/.test(url)) return json(200, { ok: true, accounts: [], types: { cash: { label: 'Cash' } } });
     return json(200, { ok: true });
   };
@@ -934,7 +935,7 @@ section('🧭 FINDING YOUR WAY — the app was unnavigable, and that is a bug');
   const nav = D.getElementById('appnav');
   ok('a signed-in person always has a nav bar on screen', disp(w, nav) !== 'none');
   ok('...with the places they can actually go',
-     [...nav.querySelectorAll('[data-nav]')].map((b) => b.dataset.nav).join(',') === 'home,books,accounts,calendar,data');
+     [...nav.querySelectorAll('[data-nav]')].map((b) => b.dataset.nav).join(',') === 'home,books,accounts,savings,calendar,data');
 
   const lit = () => [...nav.querySelectorAll('.active')].map((b) => b.dataset.nav).join(',');
   ok('🔑 it says WHERE YOU ARE — home is lit on the home screen', lit() === 'home');
@@ -2093,6 +2094,62 @@ section('🧾 LEDGER — most recent first, and today\'s newest above today\'s o
   ok('🔑 the latest date is at the top', labels[0] === 'Newer today' || labels[0] === 'Older today');
   ok('🔑 within a day, the most recently recorded is above the older one', labels.indexOf('Newer today') < labels.indexOf('Older today'));
   ok('...and yesterday sits below today', labels.indexOf('Yesterday') > labels.indexOf('Newer today'));
+}
+
+// ── SAVINGS — runway, the resilience ladder, and what you hold ──────────────
+section('🌱 SAVINGS — how long you would last, and the climb to a cushion');
+{
+  const savings = { ok: true,
+    liquid: 4_000_000, longTerm: 4_000_000, totalSaved: 8_000_000,
+    monthlyOutgoings: 2_000_000, knowMonthly: true, runwayMonths: 2,
+    resilience: { level: 1, maxLevel: 4, key: 'one', label: 'One month',
+      blurb: 'One month between you and a bad week. Aim for three.', months: 2,
+      next: { key: 'three', label: 'Three months', atMonths: 3, needMore: 2_000_000 },
+      ladder: [
+        { key: 'none',  label: 'No cushion yet',        atMonths: 0,  reached: true,  current: false },
+        { key: 'one',   label: 'One month',             atMonths: 1,  reached: true,  current: true  },
+        { key: 'three', label: 'Three months',          atMonths: 3,  reached: false, current: false },
+        { key: 'six',   label: 'Six months',            atMonths: 6,  reached: false, current: false },
+        { key: 'year',  label: 'A year — and investing', atMonths: 12, reached: false, current: false },
+      ] },
+    liquidAccounts: [{ name: 'MTN MoMo', type: 'mobile_money', amount: 1_500_000, liquid: true },
+                     { name: 'Stanbic', type: 'bank', amount: 2_500_000, liquid: true }],
+    longTermAccounts: [{ name: 'Fixed depo', type: 'fixed_deposit', amount: 4_000_000, liquid: false }],
+    note: null };
+  const { w, D } = boot(booksFetch({ savings }));
+  await settle();
+  await w.SelahActions.goSavings(); await settle();
+
+  const v = D.getElementById('out-savings').textContent;
+  ok('🔑 the runway headline shows the months', /Runway/.test(v) && /months/.test(v) && /\b2\b/.test(v));
+  ok('🔑 the resilience ladder shows where you are', /One month/.test(v) && /you are here/.test(v));
+  ok('🔑 the next rung shows how much MORE is needed', /Three months/.test(v) && /2,000,000/.test(v));
+  ok('🔑 holdings split the buffer from the longer-term', /Buffer/.test(v) && /Longer-term/.test(v) && /Fixed depo/.test(v));
+  ok('...and total saved is shown', /8,000,000/.test(v));
+}
+
+// nothing saved yet → a nudge, not a blank
+{
+  const { w, D } = boot(booksFetch({ savings: { ok: true, totalSaved: 0 } }));
+  await settle();
+  await w.SelahActions.goSavings(); await settle();
+  ok('🔑 with nothing saved, it nudges you to set up an account',
+     /No savings yet/.test(D.getElementById('out-savings').textContent));
+}
+
+// 🔴 no month cost known → runway is not invented, but holdings still show
+{
+  const savings = { ok: true, liquid: 1_000_000, longTerm: 0, totalSaved: 1_000_000,
+    knowMonthly: false, runwayMonths: null, resilience: null,
+    liquidAccounts: [{ name: 'MoMo', type: 'mobile_money', amount: 1_000_000, liquid: true }],
+    longTermAccounts: [],
+    note: 'Confirm a month of spending in your Books, and Selah can tell you how long your savings would last.' };
+  const { w, D } = boot(booksFetch({ savings }));
+  await settle();
+  await w.SelahActions.goSavings(); await settle();
+  const v = D.getElementById('out-savings').textContent;
+  ok('🔴 with no month cost, the runway is not invented — it says why', /Confirm a month of spending/.test(v));
+  ok('...but what you hold is still shown', /1,000,000/.test(v));
 }
 
 // ── THE "FORECASTED ITEMS" LIST — recurring buys that are due ───────────────

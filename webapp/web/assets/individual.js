@@ -20,12 +20,12 @@
   const esc = (s) => String(s == null ? '' : s)
     .replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  const VIEWS = ['refused', 'signin', 'home', 'payslips', 'wht', 'money', 'data', 'calendar', 'books', 'book', 'accounts'];
-  const SIGNED_IN = ['home', 'payslips', 'wht', 'money', 'data', 'calendar', 'books', 'book', 'accounts'];
+  const VIEWS = ['refused', 'signin', 'home', 'payslips', 'wht', 'money', 'data', 'calendar', 'books', 'book', 'accounts', 'savings'];
+  const SIGNED_IN = ['home', 'payslips', 'wht', 'money', 'data', 'calendar', 'books', 'book', 'accounts', 'savings'];
 
   // Which nav item lights up for which view. A sub-screen keeps its parent lit —
   // being three levels deep inside Books should still say BOOKS.
-  const NAV_OF = { home: 'home', books: 'books', book: 'books', accounts: 'accounts',
+  const NAV_OF = { home: 'home', books: 'books', book: 'books', accounts: 'accounts', savings: 'savings',
                    calendar: 'calendar', data: 'data', payslips: 'home', wht: 'home', money: 'home' };
 
   function show(name) {
@@ -637,6 +637,65 @@
   A.goPayslips = renderPayslips;
   A.goWht = renderWht;
   A.goMoney = renderMoney;
+  A.goSavings = renderSavings;
+
+  // 🌱 SAVINGS — runway, the resilience ladder, and what you actually hold.
+  async function renderSavings() {
+    show('savings');
+    const r = await API.savings();
+    if (!handle(r)) return;
+    const out = $('out-savings');
+
+    if (!r.totalSaved) {
+      out.innerHTML = `<div class="result"><p class="cap">No savings yet</p>
+        <p class="because">Saving is money you move into an account and do not spend. Add a savings account — a SACCO, a fixed deposit, a separate MoMo — and record a transfer into it. Your runway and your resilience will build from there.</p>
+        <button class="cta" data-action="goAccounts">Set up an account →</button></div>`;
+      return;
+    }
+
+    const res = r.resilience;
+
+    const runway = r.knowMonthly
+      ? `<div class="result">
+           <p class="cap">Runway — how long your liquid savings would last</p>
+           <div class="big"><span class="v">${r.runwayMonths}</span><span class="u">months</span></div>
+           ${res ? `<p class="because">${esc(res.blurb)}</p>` : ''}
+         </div>`
+      : `<div class="result"><p class="cap">Runway</p><p class="because">${esc(r.note || '')}</p></div>`;
+
+    const ladder = res ? `<div class="result">
+        <p class="cap">Your resilience — <strong>${esc(res.label)}</strong> (level ${res.level} of ${res.maxLevel})</p>
+        <div style="display:flex;flex-direction:column;gap:.35rem;margin:.6rem 0">
+          ${res.ladder.slice().reverse().map((rung) => `
+            <div style="display:flex;align-items:center;gap:.6rem;opacity:${rung.reached ? '1' : '.45'}">
+              <span style="width:1.1rem;height:1.1rem;border-radius:50%;flex:0 0 auto;background:${rung.reached ? 'var(--emerald-600)' : 'var(--border-str)'};box-shadow:${rung.current ? '0 0 0 3px var(--emerald-100, rgba(16,185,129,.25))' : 'none'}"></span>
+              <span style="font-weight:${rung.current ? '700' : '400'}">${esc(rung.label)}</span>
+              ${rung.current ? '<span class="pill ok">you are here</span>' : ''}
+            </div>`).join('')}
+        </div>
+        ${res.next
+          ? `<p class="because">Next rung: <strong>${esc(res.next.label)}</strong> — ${res.next.needMore != null ? ugx(res.next.needMore) + ' UGX more in liquid savings.' : 'keep adding to your buffer.'}</p>`
+          : `<p class="because">Top of the ladder. Money past this point is money that can be put to work.</p>`}
+      </div>` : '';
+
+    const rows = (list) => list.map((a) =>
+      `<tr><td style="padding-left:1.2rem" class="src">${esc(a.name)}</td><td class="num">${ugx(a.amount)}</td></tr>`).join('');
+
+    const holdings = `<div class="result">
+        <p class="cap">What you hold</p>
+        <div class="tablewrap"><table class="t"><tbody>
+          <tr><td><strong>Buffer</strong> — reachable next month</td><td class="num"><strong>${ugx(r.liquid)}</strong></td></tr>
+          ${rows(r.liquidAccounts)}
+          <tr><td><strong>Longer-term</strong> — locked or working</td><td class="num"><strong>${ugx(r.longTerm)}</strong></td></tr>
+          ${rows(r.longTermAccounts)}
+          <tr class="tot"><td><strong>Total saved</strong></td><td class="num"><strong>${ugx(r.totalSaved)}</strong></td></tr>
+        </tbody></table></div>
+        <p class="src">Runway counts only the buffer — the money you could actually reach next month. Land, fixed deposits and shares are real savings, but you cannot spend them tomorrow, so they never inflate your runway.</p>
+      </div>`;
+
+    out.innerHTML = `<div class="out">${runway}${ladder}${holdings}</div>`;
+  }
+
   A.goData = renderData;
 
 

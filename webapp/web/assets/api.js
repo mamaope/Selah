@@ -143,6 +143,7 @@
     setOpening:  (id, amount, asOf)     => call('POST', '/books/accounts/' + id + '/opening', { amount, asOf }),
     reconcile:   (id, actual, asOf)     => call('POST', '/books/accounts/' + id + '/reconcile', { actual, asOf }),
     health:      ()                     => call('GET',  '/books/health'),
+    savings:     ()                     => call('GET',  '/books/savings'),
 
     period:      (b, from, to)          => call('GET',  '/entries/' + b + '/period?from=' + from + '&to=' + to),
     addTemplate: (b, t)                 => call('POST', '/entries/' + b + '/templates', t),

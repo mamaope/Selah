@@ -21,6 +21,7 @@ const session = require('../lib/session');
 const B = require('../../engine/books');
 const A = require('../../engine/accounts');
 const R = require('../../engine/rollup');
+const SAV = require('../../engine/savings');
 const F = require('../../engine/forecast');
 
 const router = express.Router();
@@ -267,6 +268,31 @@ router.get('/health', async (req, res, next) => {
       savingsRate: act ? A.savingsRate(act.income, act.spend) : null,
       period: act,
     });
+  } catch (e) { next(e); }
+});
+
+/**
+ * 🌱 SAVINGS — how long you would last, and where you are on the resilience ladder.
+ *    Reuses the same balances and spending as health; the savings engine reads them.
+ */
+router.get('/savings', async (req, res, next) => {
+  try {
+    const balances = await db.audited(
+      { actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'READ', entity: 'accounts', req },
+      () => balancesFor(req.taxpayerId)
+    );
+
+    const from = req.query.from || `${today().slice(0, 7)}-01`;
+    const to = req.query.to || today();
+
+    const { rows: ents } = await db.query(
+      `SELECT e.*, c.key AS category_key FROM entries e
+         JOIN books b ON b.id = e.book_id
+         LEFT JOIN categories c ON c.id = e.category_id
+        WHERE b.owner_id = $1`, [req.taxpayerId]);
+    const act = R.actuals(ents.map(shapeEntry), from, to);
+
+    res.json({ ok: true, ...SAV.overview(balances, act ? act.spend : 0) });
   } catch (e) { next(e); }
 });
 

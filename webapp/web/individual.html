@@ -45,6 +45,7 @@
   <button data-action="goHome"     data-nav="home">🏠<span>Home</span></button>
   <button data-action="goBooks"    data-nav="books">📕<span>Books</span></button>
   <button data-action="goAccounts" data-nav="accounts">💰<span>Accounts</span></button>
+  <button data-action="goSavings"  data-nav="savings">🌱<span>Savings</span></button>
   <button data-action="goCalendar" data-nav="calendar">📅<span>Tax dates</span></button>
   <button data-action="goData"     data-nav="data">🔒<span>My data</span></button>
 </nav>
@@ -461,6 +462,16 @@
   </section>
 
   <!-- ══ ACCOUNTS + HEALTH ═══════════════════════════════════════════════ -->
+  <!-- ═══════════ SAVINGS — runway, resilience, and what you hold ═══════════ -->
+  <section id="view-savings" hidden>
+    <header class="viewhead">
+      <button class="ghost back" data-action="goHome">← Home</button>
+      <h2>Savings</h2>
+    </header>
+    <p class="lede">How long your money would last, and where you stand on the climb to a comfortable cushion. <strong>Built from what you already record</strong> — saving is money sitting in an account you have not spent.</p>
+    <div id="out-savings" class="stack"></div>
+  </section>
+
   <section id="view-accounts" hidden>
     <header class="viewhead">
       <button class="ghost back" data-action="goHome">← Home</button>
