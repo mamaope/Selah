@@ -23,6 +23,7 @@ const A = require('../../engine/accounts');
 const R = require('../../engine/rollup');
 const SAV = require('../../engine/savings');
 const GOALS = require('../../engine/goals');
+const GAMIFY = require('../../engine/gamify');
 const F = require('../../engine/forecast');
 
 const router = express.Router();
@@ -312,9 +313,53 @@ router.get('/savings', async (req, res, next) => {
       };
     });
 
-    res.json({ ok: true, ...SAV.overview(balances, act ? act.spend : 0), goals });
+    const overview = SAV.overview(balances, act ? act.spend : 0);
+
+    // 🎮 GAMIFICATION — streaks and badges, earned only by money that really moved.
+    const savingsIds = balances.filter((b) => b.side === 'asset' && A.isSavings(b)).map((b) => b.accountId);
+    const series = savingsMonthlySeries(entries, savingsIds, today(), 12);
+    const streak = GAMIFY.savingStreak(series);
+    const gamification = {
+      streak,
+      badges: GAMIFY.badges({
+        totalSaved: overview.totalSaved,
+        hasEmergencyFund: overview.hasEmergencyFund,
+        resilienceLevel: overview.resilience ? overview.resilience.level : 0,
+        currentStreak: streak.current,
+        goalsReached: goals.filter((g) => g.reached).length,
+      }),
+      series,
+    };
+
+    res.json({ ok: true, ...overview, goals, gamification });
   } catch (e) { next(e); }
 });
+
+/** Dense trailing series of NET money saved per calendar month (into savings, less out). */
+function savingsMonthlySeries(entries, savingsIds, asOf, months = 12) {
+  const ids = new Set(savingsIds || []);
+  const base = new Date(asOf + 'T00:00:00Z');
+  const key = (d) => d.slice(0, 7);
+  // seed the last `months` calendar months at 0
+  const seq = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() - i, 1));
+    seq.push({ month: d.toISOString().slice(0, 7), net: 0 });
+  }
+  const byMonth = {};
+  for (const m of seq) byMonth[m.month] = m;
+  for (const e of entries) {
+    if (!e.occurredOn) continue;
+    if (!['confirmed', 'unplanned'].includes(e.status)) continue;
+    const bucket = byMonth[key(e.occurredOn)];
+    if (!bucket) continue;
+    const amt = Number((e.actual != null ? e.actual : e.expected) || 0);
+    // into a savings account is saving; out of one is un-saving
+    if ((e.direction === 'in' && ids.has(e.accountId)) || (e.direction === 'transfer' && ids.has(e.toAccountId))) bucket.net += amt;
+    if ((e.direction === 'out' && ids.has(e.accountId)) || (e.direction === 'transfer' && ids.has(e.fromAccountId))) bucket.net -= amt;
+  }
+  return seq;
+}
 
 /** Average money moved INTO an account per month over the trailing window (default 3 months). */
 function monthlyInflow(entries, accountId, asOf, months = 3) {

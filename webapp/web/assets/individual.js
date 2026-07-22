@@ -700,8 +700,29 @@
     // ── GOALS — a target, a date, and a pot ──
     const goalCard = renderGoals(r.goals || []);
 
-    out.innerHTML = `<div class="out">${efCard}${otherCard}${total}${goalCard}</div>`;
+    // ── GAMIFICATION — streak + badges, earned by real saved money ──
+    const gameCard = renderGamify(r.gamification);
+
+    out.innerHTML = `<div class="out">${gameCard}${efCard}${otherCard}${total}${goalCard}</div>`;
     fillGoalAccounts();
+  }
+
+  function renderGamify(g) {
+    if (!g) return '';
+    const st = g.streak || { current: 0, best: 0, says: '' };
+    const b = g.badges || { earned: [], locked: [], count: 0, total: 0, next: null };
+    const chip = (x, on) => `<span class="pill ${on ? 'ok' : ''}" title="${esc(x.blurb || '')}" style="${on ? '' : 'opacity:.45'}">${on ? '🏅 ' : '🔒 '}${esc(x.label)}</span>`;
+    const earned = b.earned.map((x) => chip(x, true)).join(' ');
+    const locked = b.locked.map((x) => chip(x, false)).join(' ');
+    return `<div class="result">
+        <p class="cap">Your saving streak</p>
+        <div class="big"><span class="v">${st.current}</span><span class="u">month${st.current === 1 ? '' : 's'} in a row</span></div>
+        <p class="because">${esc(st.says || '')}${st.best > st.current ? ' Best so far: ' + st.best + '.' : ''}</p>
+        <p class="cap" style="margin-top:.8rem">Badges — ${b.count} of ${b.total}</p>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.3rem">${earned || '<span class="src">None yet — save into a savings account to earn your first.</span>'}</div>
+        ${b.next ? `<p class="src" style="margin-top:.5rem">Next up: <strong>${esc(b.next.label)}</strong> — ${esc(b.next.blurb || '')}</p>` : ''}
+        ${locked ? `<details style="margin-top:.4rem"><summary class="src">Locked badges</summary><div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.3rem">${locked}</div></details>` : ''}
+      </div>`;
   }
 
   function renderGoals(goals) {

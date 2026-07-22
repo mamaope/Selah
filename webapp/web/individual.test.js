@@ -2117,6 +2117,10 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
         { key: 'six',   label: 'Six months',            atMonths: 6,  reached: false, current: false },
         { key: 'year',  label: 'A year — and investing', atMonths: 12, reached: false, current: false },
       ] },
+    gamification: { streak: { current: 3, best: 4, savedThisMonth: true, says: '3 months running. This is the habit now.' },
+      badges: { count: 3, total: 12,
+        earned: [{ key: 'first_save', label: 'First shilling saved', blurb: 'x' }, { key: 'ef_opened', label: 'Emergency fund opened', blurb: 'x' }, { key: 'streak_3', label: 'Three months running', blurb: 'x' }],
+        locked: [{ key: 'saved_1m', label: '1,000,000 saved', blurb: 'x' }], next: { key: 'saved_1m', label: '1,000,000 saved', blurb: 'A million shillings, kept.' } } },
     note: null };
   const { w, D } = boot(booksFetch({ savings }));
   await settle();
@@ -2129,6 +2133,10 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
   ok('🔑 the next rung says how much MORE to move INTO the emergency fund', /Three months/.test(v) && /2,000,000 UGX more into your emergency fund/.test(v));
   ok('🔑 other savings are shown, but plainly OFF the runway', /Other savings/.test(v) && /Unity SACCO/.test(v) && /Fixed depo/.test(v));
   ok('...and total across all savings accounts is shown', /12,000,000/.test(v));
+
+  // 🎮 gamification — streak + badges
+  ok('🎮 the saving streak is shown', /saving streak/i.test(v) && /3/.test(v) && /months in a row/.test(v));
+  ok('🏅 earned badges are shown, with the next one to chase', /Three months running/.test(v) && /Next up/.test(v) && /1,000,000 saved/.test(v));
 }
 
 // 🔑 savings but NO emergency-fund account → nudge to open one, other savings still shown
