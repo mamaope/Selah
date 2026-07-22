@@ -6,7 +6,7 @@
     "supertest": "^7.0.0"
   },
   "scripts": {
-    "test": "node engine/engine.test.js && node engine/calendar.test.js && node engine/books.test.js && node engine/accounts.test.js && node engine/rollup.test.js && node engine/money.test.js && node engine/forecast.test.js && node engine/values.test.js && node engine/pricing.test.js && node engine/shopping.test.js && node engine/savings.test.js && node engine/goals.test.js && node engine/gamify.test.js && node web/ui.test.js && node web/individual.test.js && node web/organisation.test.js && node server/password.test.js && node server/server.test.js",
+    "test": "node engine/engine.test.js && node engine/calendar.test.js && node engine/books.test.js && node engine/accounts.test.js && node engine/rollup.test.js && node engine/money.test.js && node engine/forecast.test.js && node engine/values.test.js && node engine/pricing.test.js && node engine/shopping.test.js && node engine/savings.test.js && node engine/goals.test.js && node engine/gamify.test.js && node engine/invest.test.js && node web/ui.test.js && node web/individual.test.js && node web/organisation.test.js && node server/password.test.js && node server/server.test.js",
     "build": "node build.js",
     "e2e": "playwright test",
     "e2e:install": "playwright install --with-deps chromium",

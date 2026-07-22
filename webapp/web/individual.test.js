@@ -2121,6 +2121,15 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
       badges: { count: 3, total: 12,
         earned: [{ key: 'first_save', label: 'First shilling saved', blurb: 'x' }, { key: 'ef_opened', label: 'Emergency fund opened', blurb: 'x' }, { key: 'streak_3', label: 'Three months running', blurb: 'x' }],
         locked: [{ key: 'saved_1m', label: '1,000,000 saved', blurb: 'x' }], next: { key: 'saved_1m', label: '1,000,000 saved', blurb: 'A million shillings, kept.' } } },
+    invest: {
+      ladder: { rung: 'short', headline: 'Short-term, still reachable', guidance: 'Keep it low-risk and accessible.', fits: ['mmf', 'tbill'], runwayMonths: 2, hasEmergencyFund: true },
+      vehicles: [
+        { key: 'tbill', name: 'Treasury bill', category: 'Short-term', liquidity: 'held 91–364 days', risk: 'very low', grossReturnRange: [12, 12], netReturnRange: [9.6, 9.6], taxWorking: '12% before tax, 20% withheld → 9.6% net', providers: ['Bank of Uganda', 'a broker'] },
+        { key: 'mmf', name: 'Money market fund', category: 'Buffer', liquidity: '2–5 days', risk: 'low', grossReturnRange: [11, 13], netReturnRange: [11, 13], taxWorking: 'Quoted net of tax and fees.', providers: ['UAP Old Mutual', 'Sanlam'] },
+        { key: 'tbond', name: 'Treasury bond', category: 'Long-term', liquidity: '2–20 years', risk: 'low', grossReturnRange: [12, 16], netReturnRange: [9.6, 12.8], taxWorking: 'x', providers: ['Bank of Uganda'] },
+      ],
+      disclaimer: 'Information, not advice. Selah is not a licensed financial adviser, this is not a recommendation to buy any product, and it is not a solicitation.',
+      verifiedOn: '2026-07-22' },
     note: null };
   const { w, D } = boot(booksFetch({ savings }));
   await settle();
@@ -2137,6 +2146,12 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
   // 🎮 gamification — streak + badges
   ok('🎮 the saving streak is shown', /saving streak/i.test(v) && /3/.test(v) && /months in a row/.test(v));
   ok('🏅 earned badges are shown, with the next one to chase', /Three months running/.test(v) && /Next up/.test(v) && /1,000,000 saved/.test(v));
+
+  // 💡 the investment ladder — named providers, after-tax math, not-advice framing
+  ok('💡 the ladder shows where you are and names real Ugandan options', /Where your money could work/.test(v) && /Treasury bill/.test(v) && /UAP Old Mutual/.test(v));
+  ok('🔑 the AFTER-TAX return is shown (12% → 9.6% net)', /9.6%/.test(v) && /After tax/.test(v));
+  ok('🔑 vehicles that FIT the current rung are flagged', /fits you now/.test(v));
+  ok('🔴 it says plainly this is information, not advice', /not.*licensed financial adviser/i.test(v) && /not a recommendation|not a solicitation/i.test(v));
 }
 
 // 🔑 savings but NO emergency-fund account → nudge to open one, other savings still shown

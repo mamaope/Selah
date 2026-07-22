@@ -24,6 +24,7 @@ const R = require('../../engine/rollup');
 const SAV = require('../../engine/savings');
 const GOALS = require('../../engine/goals');
 const GAMIFY = require('../../engine/gamify');
+const INVEST = require('../../engine/invest');
 const F = require('../../engine/forecast');
 
 const router = express.Router();
@@ -331,7 +332,15 @@ router.get('/savings', async (req, res, next) => {
       series,
     };
 
-    res.json({ ok: true, ...overview, goals, gamification });
+    // 💡 WHERE YOUR MONEY COULD WORK — sourced options + after-tax math + your rung.
+    const invest = {
+      ladder: INVEST.ladder({ runwayMonths: overview.runwayMonths || 0, hasEmergencyFund: overview.hasEmergencyFund }),
+      vehicles: INVEST.vehicles(),
+      disclaimer: INVEST.DISCLAIMER,
+      verifiedOn: INVEST.VERIFIED_ON,
+    };
+
+    res.json({ ok: true, ...overview, goals, gamification, invest });
   } catch (e) { next(e); }
 });
 

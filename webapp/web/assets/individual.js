@@ -703,8 +703,37 @@
     // ── GAMIFICATION — streak + badges, earned by real saved money ──
     const gameCard = renderGamify(r.gamification);
 
-    out.innerHTML = `<div class="out">${gameCard}${efCard}${otherCard}${total}${goalCard}</div>`;
+    // ── WHERE YOUR MONEY COULD WORK — the ladder + after-tax options ──
+    const investCard = renderInvest(r.invest);
+
+    out.innerHTML = `<div class="out">${gameCard}${efCard}${otherCard}${total}${goalCard}${investCard}</div>`;
     fillGoalAccounts();
+  }
+
+  function renderInvest(inv) {
+    if (!inv || !inv.ladder) return '';
+    const pctRange = (rng) => rng ? (rng[0] === rng[1] ? rng[0] + '%' : rng[0] + '–' + rng[1] + '%') : '—';
+    const fit = new Set(inv.ladder.fits || []);
+    // fitting vehicles first, then the rest
+    const vs = (inv.vehicles || []).slice().sort((a, b) => (fit.has(b.key) ? 1 : 0) - (fit.has(a.key) ? 1 : 0));
+    const rows = vs.map((v) => `
+        <tr${fit.has(v.key) ? '' : ' style="opacity:.5"'}>
+          <td><strong>${esc(v.name)}</strong>${fit.has(v.key) ? ' <span class="pill ok">fits you now</span>' : ''}<div class="src">${esc(v.category)} · ${esc(v.liquidity)} · risk ${esc(v.risk)}</div></td>
+          <td class="num">${pctRange(v.grossReturnRange)}</td>
+          <td class="num"><strong>${pctRange(v.netReturnRange)}</strong></td>
+          <td class="src">${esc((v.providers || []).join(', '))}</td>
+        </tr>`).join('');
+
+    return `<div class="result">
+        <p class="cap">Where your money could work</p>
+        <div class="alert alert-info"><strong>${esc(inv.ladder.headline)}.</strong> ${esc(inv.ladder.guidance)}</div>
+        <div class="tablewrap"><table class="t">
+          <thead><tr><th>Option</th><th class="num">Return</th><th class="num">After tax</th><th>Who offers it (Uganda)</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+        <p class="src">The <strong>after-tax</strong> column is Selah's edge: a 12% treasury bill is really 9.6% once 20% withholding tax is taken — the number that actually reaches you. Figures verified ${esc(inv.verifiedOn)}; a rate is a snapshot, not a promise.</p>
+        <p class="hint">${esc(inv.disclaimer)}</p>
+      </div>`;
   }
 
   function renderGamify(g) {
