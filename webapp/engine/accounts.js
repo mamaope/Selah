@@ -56,22 +56,28 @@ const ACCOUNT_TYPES = {
   cash:          { label: 'Cash',                     side: 'asset', liquid: true },
   mobile_money:  { label: 'Mobile money',             side: 'asset', liquid: true,
                    note: 'MTN MoMo, Airtel Money. Withdrawals carry a 0.5% excise duty — the balance you see is not the cash you get.' },
-  bank:          { label: 'Bank account',             side: 'asset', liquid: true },
+  bank:          { label: 'Bank account (current)',   side: 'asset', liquid: true,
+                   note: 'Your everyday/current account — spending money, not savings. If this is a dedicated savings account, choose "Savings account" instead.' },
 
-  sacco:         { label: 'SACCO savings',            side: 'asset', liquid: true,
+  // ── SAVINGS & INVESTMENT VEHICLES — money you deliberately set aside. ──────
+  //    🔑 These, and only these, count as SAVINGS. Cash, MoMo and a current
+  //    account are this month's spending money, not a cushion you have built.
+  savings:       { label: 'Savings account',          side: 'asset', liquid: true, savings: true,
+                   note: 'A dedicated savings account — bank or mobile — you set money aside in and do not spend from day to day.' },
+  sacco:         { label: 'SACCO savings',            side: 'asset', liquid: true, savings: true,
                    note: 'SACCO SAVINGS are usually withdrawable. SACCO SHARES usually are NOT. If this account is shares, mark it as not liquid.' },
-  vsla:          { label: 'Village savings (VSLA)',   side: 'asset', liquid: false,
+  vsla:          { label: 'Village savings (VSLA)',   side: 'asset', liquid: false, savings: true,
                    note: 'A VSLA pays out at the END of the cycle. It is real money and you cannot touch it next month.' },
-  fixed_deposit: { label: 'Fixed deposit',            side: 'asset', liquid: false,
+  fixed_deposit: { label: 'Fixed deposit',            side: 'asset', liquid: false, savings: true,
                    note: 'Fixed. Breaking it early usually costs the interest.' },
 
-  unit_trust:    { label: 'Unit trust',               side: 'asset', liquid: true,
+  unit_trust:    { label: 'Unit trust',               side: 'asset', liquid: true, savings: true,
                    note: 'Usually redeemable in a few working days. Its VALUE moves — what you record is what it is worth today, not what you put in.' },
-  treasury:      { label: 'Treasury bills / bonds',   side: 'asset', liquid: false,
+  treasury:      { label: 'Treasury bills / bonds',   side: 'asset', liquid: false, savings: true,
                    note: 'Held to maturity unless you sell on the secondary market at whatever it fetches.' },
-  shares:        { label: 'Shares',                   side: 'asset', liquid: false,
+  shares:        { label: 'Shares',                   side: 'asset', liquid: false, savings: true,
                    note: 'The USE is thin. "Worth" and "what somebody will pay you this week" are not the same number.' },
-  land:          { label: 'Land / property',          side: 'asset', liquid: false,
+  land:          { label: 'Land / property',          side: 'asset', liquid: false, savings: true,
                    note: '🔴 RECORD WHAT YOU PAID, not what you think it is worth. Nobody knows what a plot is worth until it sells, and a net worth built on a hoped-for land price is a net worth built on a hope.' },
 
   loan:          { label: 'Loan (you owe)',           side: 'debt' },
@@ -85,6 +91,9 @@ const ACCOUNT_TYPES = {
 const isAsset  = (a) => (ACCOUNT_TYPES[a.type] || {}).side === 'asset';
 const isDebt   = (a) => (ACCOUNT_TYPES[a.type] || {}).side === 'debt';
 const isLiquid = (a) => a.liquid !== undefined ? Boolean(a.liquid) : Boolean((ACCOUNT_TYPES[a.type] || {}).liquid);
+// 🔑 Only money in a savings/investment vehicle is SAVINGS. Cash, MoMo and a
+//    current account are spending money — never counted as a cushion you built.
+const isSavings = (a) => a.savings !== undefined ? Boolean(a.savings) : Boolean((ACCOUNT_TYPES[a.type] || {}).savings);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE BALANCE
@@ -404,7 +413,7 @@ function savingsRate(confirmedIn, confirmedOut) {
 
 module.exports = {
   ACCOUNT_TYPES, MOVED,
-  isAsset, isDebt, isLiquid,
+  isAsset, isDebt, isLiquid, isSavings,
   computedBalance, reconcile,
   netWorth, emergencyFund, savingsRate,
 };

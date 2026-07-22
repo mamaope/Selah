@@ -2112,8 +2112,8 @@ section('🌱 SAVINGS — how long you would last, and the climb to a cushion');
         { key: 'six',   label: 'Six months',            atMonths: 6,  reached: false, current: false },
         { key: 'year',  label: 'A year — and investing', atMonths: 12, reached: false, current: false },
       ] },
-    liquidAccounts: [{ name: 'MTN MoMo', type: 'mobile_money', amount: 1_500_000, liquid: true },
-                     { name: 'Stanbic', type: 'bank', amount: 2_500_000, liquid: true }],
+    liquidAccounts: [{ name: 'Unity SACCO', type: 'sacco', amount: 1_500_000, liquid: true },
+                     { name: 'Absa Savings', type: 'savings', amount: 2_500_000, liquid: true }],
     longTermAccounts: [{ name: 'Fixed depo', type: 'fixed_deposit', amount: 4_000_000, liquid: false }],
     note: null };
   const { w, D } = boot(booksFetch({ savings }));

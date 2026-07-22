@@ -4,8 +4,8 @@
  * 🔑 SAVINGS IS NOT A NEW POT. It is a lens on money you already track.
  *
  * Your accounts already say what they are — liquid or not, asset or debt. "Saving"
- * is money sitting in an asset account you have not spent. So this module does not
- * invent a parallel ledger; it reads your balances and answers two questions a
+ * is money in a savings or investment account — not the cash, MoMo and current-account
+ * money you spend from day to day. This module reads those balances and answers a
  * saver actually asks:
  *
  *   1. HOW LONG WOULD I LAST?  — runway: liquid savings ÷ what a month costs you.
@@ -24,6 +24,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 const { UGX } = require('./engine');
+const ACC = require('./accounts');
 
 // The ladder. Each rung is a number of months of expenses covered by LIQUID money.
 const RUNGS = [
@@ -84,9 +85,11 @@ function overview(balances, monthlyOutgoings) {
   const bs = Array.isArray(balances) ? balances : [];
   const out = UGX(monthlyOutgoings);
 
-  const assets = bs.filter((b) => b.side === 'asset');
-  const liquidAccounts   = assets.filter((b) => b.liquid);
-  const lockedAccounts   = assets.filter((b) => !b.liquid);
+  // 🔑 SAVINGS IS MONEY IN A SAVINGS/INVESTMENT ACCOUNT — not cash, not MoMo, not
+  //    your current account. Those hold this month's spending, not a cushion.
+  const savings = bs.filter((b) => b.side === 'asset' && ACC.isSavings(b));
+  const liquidAccounts = savings.filter((b) => b.liquid);   // reachable next month
+  const lockedAccounts = savings.filter((b) => !b.liquid);  // locked, or an investment
 
   const liquid   = liquidAccounts.reduce((a, b) => a + UGX(b.computed), 0);
   const longTerm = lockedAccounts.reduce((a, b) => a + UGX(b.computed), 0);
