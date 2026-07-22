@@ -62,6 +62,8 @@ const ACCOUNT_TYPES = {
   // ── SAVINGS & INVESTMENT VEHICLES — money you deliberately set aside. ──────
   //    🔑 These, and only these, count as SAVINGS. Cash, MoMo and a current
   //    account are this month's spending money, not a cushion you have built.
+  emergency_fund:{ label: 'Emergency fund',           side: 'asset', liquid: true, savings: true, emergency: true,
+                   note: '🔑 Your cushion, in its OWN account — money set aside for emergencies only. Aim for three to six months of expenses, kept liquid and untouched. This is the account your runway is measured against.' },
   savings:       { label: 'Savings account',          side: 'asset', liquid: true, savings: true,
                    note: 'A dedicated savings account — bank or mobile — you set money aside in and do not spend from day to day.' },
   sacco:         { label: 'SACCO savings',            side: 'asset', liquid: true, savings: true,
@@ -94,6 +96,8 @@ const isLiquid = (a) => a.liquid !== undefined ? Boolean(a.liquid) : Boolean((AC
 // 🔑 Only money in a savings/investment vehicle is SAVINGS. Cash, MoMo and a
 //    current account are spending money — never counted as a cushion you built.
 const isSavings = (a) => a.savings !== undefined ? Boolean(a.savings) : Boolean((ACCOUNT_TYPES[a.type] || {}).savings);
+// 🔑 The emergency fund lives in its OWN account — the runway is measured against it.
+const isEmergencyFund = (a) => a.emergency !== undefined ? Boolean(a.emergency) : Boolean((ACCOUNT_TYPES[a.type] || {}).emergency);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE BALANCE
@@ -413,7 +417,7 @@ function savingsRate(confirmedIn, confirmedOut) {
 
 module.exports = {
   ACCOUNT_TYPES, MOVED,
-  isAsset, isDebt, isLiquid, isSavings,
+  isAsset, isDebt, isLiquid, isSavings, isEmergencyFund,
   computedBalance, reconcile,
   netWorth, emergencyFund, savingsRate,
 };

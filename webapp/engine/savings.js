@@ -88,33 +88,47 @@ function overview(balances, monthlyOutgoings) {
   // 🔑 SAVINGS IS MONEY IN A SAVINGS/INVESTMENT ACCOUNT — not cash, not MoMo, not
   //    your current account. Those hold this month's spending, not a cushion.
   const savings = bs.filter((b) => b.side === 'asset' && ACC.isSavings(b));
-  const liquidAccounts = savings.filter((b) => b.liquid);   // reachable next month
-  const lockedAccounts = savings.filter((b) => !b.liquid);  // locked, or an investment
 
-  const liquid   = liquidAccounts.reduce((a, b) => a + UGX(b.computed), 0);
-  const longTerm = lockedAccounts.reduce((a, b) => a + UGX(b.computed), 0);
+  // 🔑 THE EMERGENCY FUND IS ITS OWN ACCOUNT. The runway is measured against THAT
+  //    account alone — not every liquid shilling you happen to hold. Your SACCO and
+  //    your fixed deposit are savings, but they are not your emergency cushion unless
+  //    you have decided they are, by putting the money in the emergency-fund account.
+  const efAccounts    = savings.filter((b) => ACC.isEmergencyFund(b));
+  const otherLiquid   = savings.filter((b) => !ACC.isEmergencyFund(b) && b.liquid);
+  const lockedAccounts = savings.filter((b) => !ACC.isEmergencyFund(b) && !b.liquid);
+
+  const emergencyFund    = efAccounts.reduce((a, b) => a + UGX(b.computed), 0);
+  const otherLiquidTotal = otherLiquid.reduce((a, b) => a + UGX(b.computed), 0);
+  const longTerm         = lockedAccounts.reduce((a, b) => a + UGX(b.computed), 0);
 
   const knowMonthly = out > 0;
-  const months = knowMonthly && liquid > 0 ? liquid / out
+  // runway = how many months the EMERGENCY FUND ACCOUNT covers
+  const months = knowMonthly && emergencyFund > 0 ? emergencyFund / out
                : knowMonthly ? 0
                : null;
 
   const shape = (b) => ({ name: b.name, type: b.type, amount: UGX(b.computed), liquid: Boolean(b.liquid) });
 
   return {
-    liquid,                                    // the buffer — reachable next month
-    longTerm,                                  // locked away or working (land, fixed deposits, shares…)
-    totalSaved: liquid + longTerm,
+    emergencyFund,                             // the balance of your emergency-fund account(s)
+    hasEmergencyFund: efAccounts.length > 0,
+    emergencyAccounts: efAccounts.map(shape),
+
+    otherLiquid: otherLiquid.map(shape),       // liquid savings that are NOT the emergency fund
+    otherLiquidTotal,
+    longTerm,                                  // locked or working (fixed deposits, shares, land…)
+    longTermAccounts: lockedAccounts.map(shape),
+
+    totalSaved: emergencyFund + otherLiquidTotal + longTerm,
     monthlyOutgoings: out,
     knowMonthly,
     runwayMonths: months != null ? Math.round(months * 10) / 10 : null,
     resilience: months != null ? resilience(months, out) : null,
-    liquidAccounts: liquidAccounts.map(shape),
-    longTermAccounts: lockedAccounts.map(shape),
-    // 🔴 said out loud when we cannot answer the runway question
-    note: knowMonthly
-      ? null
-      : 'Confirm a month of spending in your Books, and Selah can tell you how long your savings would last.',
+
+    // 🔴 said out loud: no emergency-fund account, or no month cost to divide by
+    note: efAccounts.length === 0
+      ? 'Your emergency fund lives in its own account. Add an “Emergency fund” account and move money into it — three to six months of expenses, kept for emergencies only.'
+      : (knowMonthly ? null : 'Confirm a month of spending in your Books, and Selah can tell you how many months your emergency fund covers.'),
   };
 }
 

@@ -49,37 +49,57 @@ t('the ladder marks reached rungs and the current one', () => {
 // ── THE OVERVIEW ─────────────────────────────────────────────────────────────
 
 const BAL = [
-  { name: 'MTN MoMo',    type: 'mobile_money',  side: 'asset', liquid: true,  computed: 1_500_000, currency: 'UGX' },  // spending money
-  { name: 'Stanbic',     type: 'bank',          side: 'asset', liquid: true,  computed: 2_500_000, currency: 'UGX' },  // current account
-  { name: 'Unity SACCO', type: 'sacco',         side: 'asset', liquid: true,  computed: 4_000_000, currency: 'UGX' },  // savings, liquid
-  { name: 'Fixed depo',  type: 'fixed_deposit', side: 'asset', liquid: false, computed: 4_000_000, currency: 'UGX' },  // savings, locked
-  { name: 'DFCU loan',   type: 'loan',          side: 'debt',                 computed: 3_000_000, currency: 'UGX' },  // debt
+  { name: 'MTN MoMo',    type: 'mobile_money',   side: 'asset', liquid: true,  computed: 1_500_000, currency: 'UGX' },  // spending money
+  { name: 'Stanbic',     type: 'bank',           side: 'asset', liquid: true,  computed: 2_500_000, currency: 'UGX' },  // current account
+  { name: 'My cushion',  type: 'emergency_fund', side: 'asset', liquid: true,  computed: 4_000_000, currency: 'UGX' },  // THE emergency fund
+  { name: 'Unity SACCO', type: 'sacco',          side: 'asset', liquid: true,  computed: 3_000_000, currency: 'UGX' },  // other liquid savings
+  { name: 'Fixed depo',  type: 'fixed_deposit',  side: 'asset', liquid: false, computed: 5_000_000, currency: 'UGX' },  // long-term
+  { name: 'DFCU loan',   type: 'loan',           side: 'debt',                 computed: 3_000_000, currency: 'UGX' },  // debt
 ];
 
-t('🔑 SAVINGS is money in a savings account only — runway = 4,000,000 SACCO ÷ 2,000,000 = 2 months', () => {
+t('🔑 THE RUNWAY IS THE EMERGENCY-FUND ACCOUNT ÷ a month — 4,000,000 ÷ 2,000,000 = 2 months', () => {
   const o = S.overview(BAL, 2_000_000);
-  assert.strictEqual(o.liquid, 4_000_000);           // the SACCO — NOT MoMo, NOT the current account
+  assert.strictEqual(o.emergencyFund, 4_000_000);      // only the emergency-fund account
+  assert.strictEqual(o.hasEmergencyFund, true);
   assert.strictEqual(o.runwayMonths, 2);
-  assert.strictEqual(o.resilience.key, 'one');        // 2 months → past one, short of three
+  assert.strictEqual(o.resilience.key, 'one');
 });
 
-t('🔴 CASH, MOBILE MONEY AND A CURRENT ACCOUNT ARE NOT SAVINGS — they are spending money', () => {
+t('🔑 THE SACCO IS SAVINGS, BUT NOT THE EMERGENCY FUND — it is shown separately, off the runway', () => {
   const o = S.overview(BAL, 2_000_000);
-  assert.ok(!o.liquidAccounts.some((a) => a.name === 'MTN MoMo'), 'MoMo is not savings');
-  assert.ok(!o.liquidAccounts.some((a) => a.name === 'Stanbic'), 'current account is not savings');
-  assert.strictEqual(o.totalSaved, 8_000_000);        // SACCO + fixed deposit only — the 4,000,000 of float is excluded
+  assert.strictEqual(o.otherLiquidTotal, 3_000_000);   // the SACCO
+  assert.ok(o.otherLiquid.some((a) => a.name === 'Unity SACCO'));
+  assert.strictEqual(o.runwayMonths, 2);                // adding the SACCO does NOT change the runway
 });
 
-t('🔴 the fixed deposit is savings, but it is NOT in the runway (locked)', () => {
+t('🔴 cash, mobile money and a current account are not savings at all', () => {
   const o = S.overview(BAL, 2_000_000);
-  assert.strictEqual(o.longTerm, 4_000_000);
+  const named = [...o.emergencyAccounts, ...o.otherLiquid, ...o.longTermAccounts].map((a) => a.name);
+  assert.ok(!named.includes('MTN MoMo'));
+  assert.ok(!named.includes('Stanbic'));
+  assert.strictEqual(o.totalSaved, 12_000_000);         // EF 4M + SACCO 3M + FD 5M; the 4M of float is excluded
+});
+
+t('🔴 the fixed deposit is long-term savings, not the runway', () => {
+  const o = S.overview(BAL, 2_000_000);
+  assert.strictEqual(o.longTerm, 5_000_000);
   assert.ok(o.longTermAccounts.some((a) => a.name === 'Fixed depo'));
 });
 
 t('🔴 debt is never counted as savings', () => {
   const o = S.overview(BAL, 2_000_000);
-  assert.ok(!o.liquidAccounts.some((a) => a.name === 'DFCU loan'));
-  assert.ok(!o.longTermAccounts.some((a) => a.name === 'DFCU loan'));
+  const named = [...o.emergencyAccounts, ...o.otherLiquid, ...o.longTermAccounts].map((a) => a.name);
+  assert.ok(!named.includes('DFCU loan'));
+});
+
+t('🔑 NO EMERGENCY-FUND ACCOUNT → runway is zero and it says to open one', () => {
+  const noEF = BAL.filter((b) => b.type !== 'emergency_fund');
+  const o = S.overview(noEF, 2_000_000);
+  assert.strictEqual(o.hasEmergencyFund, false);
+  assert.strictEqual(o.emergencyFund, 0);
+  assert.strictEqual(o.runwayMonths, 0);
+  assert.ok(/its own account/.test(o.note));
+  assert.strictEqual(o.otherLiquidTotal, 3_000_000);    // the SACCO is still shown as savings
 });
 
 t('🔴 with no month cost known, runway is unknown — not a divide-by-zero boast', () => {
@@ -87,15 +107,14 @@ t('🔴 with no month cost known, runway is unknown — not a divide-by-zero boa
   assert.strictEqual(o.knowMonthly, false);
   assert.strictEqual(o.runwayMonths, null);
   assert.strictEqual(o.resilience, null);
-  assert.ok(/Confirm a month of spending/.test(o.note));
-  assert.strictEqual(o.liquid, 4_000_000);            // it still shows what you hold
+  assert.strictEqual(o.emergencyFund, 4_000_000);       // it still shows the fund you hold
 });
 
 t('an empty picture is honest, not a crash', () => {
   const o = S.overview([], 500_000);
   assert.strictEqual(o.totalSaved, 0);
-  assert.strictEqual(o.runwayMonths, 0);
-  assert.strictEqual(o.resilience.key, 'none');
+  assert.strictEqual(o.emergencyFund, 0);
+  assert.strictEqual(o.hasEmergencyFund, false);
 });
 
 console.log(fail

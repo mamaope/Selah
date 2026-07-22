@@ -2096,12 +2096,15 @@ section('🧾 LEDGER — most recent first, and today\'s newest above today\'s o
   ok('...and yesterday sits below today', labels.indexOf('Yesterday') > labels.indexOf('Newer today'));
 }
 
-// ── SAVINGS — runway, the resilience ladder, and what you hold ──────────────
-section('🌱 SAVINGS — how long you would last, and the climb to a cushion');
+// ── SAVINGS — the emergency fund (its own account), plus other savings ──────
+section('🌱 SAVINGS — the emergency fund is its own account, and the runway measures it');
 {
   const savings = { ok: true,
-    liquid: 4_000_000, longTerm: 4_000_000, totalSaved: 8_000_000,
-    monthlyOutgoings: 2_000_000, knowMonthly: true, runwayMonths: 2,
+    emergencyFund: 4_000_000, hasEmergencyFund: true,
+    emergencyAccounts: [{ name: 'My cushion', type: 'emergency_fund', amount: 4_000_000, liquid: true }],
+    otherLiquid: [{ name: 'Unity SACCO', type: 'sacco', amount: 3_000_000, liquid: true }], otherLiquidTotal: 3_000_000,
+    longTerm: 5_000_000, longTermAccounts: [{ name: 'Fixed depo', type: 'fixed_deposit', amount: 5_000_000, liquid: false }],
+    totalSaved: 12_000_000, monthlyOutgoings: 2_000_000, knowMonthly: true, runwayMonths: 2,
     resilience: { level: 1, maxLevel: 4, key: 'one', label: 'One month',
       blurb: 'One month between you and a bad week. Aim for three.', months: 2,
       next: { key: 'three', label: 'Three months', atMonths: 3, needMore: 2_000_000 },
@@ -2112,44 +2115,58 @@ section('🌱 SAVINGS — how long you would last, and the climb to a cushion');
         { key: 'six',   label: 'Six months',            atMonths: 6,  reached: false, current: false },
         { key: 'year',  label: 'A year — and investing', atMonths: 12, reached: false, current: false },
       ] },
-    liquidAccounts: [{ name: 'Unity SACCO', type: 'sacco', amount: 1_500_000, liquid: true },
-                     { name: 'Absa Savings', type: 'savings', amount: 2_500_000, liquid: true }],
-    longTermAccounts: [{ name: 'Fixed depo', type: 'fixed_deposit', amount: 4_000_000, liquid: false }],
     note: null };
   const { w, D } = boot(booksFetch({ savings }));
   await settle();
   await w.SelahActions.goSavings(); await settle();
 
   const v = D.getElementById('out-savings').textContent;
-  ok('🔑 the runway headline shows the months', /Runway/.test(v) && /months/.test(v) && /\b2\b/.test(v));
+  ok('🔑 the emergency fund is the headline, with its balance', /Emergency fund/.test(v) && /4,000,000/.test(v));
+  ok('🔑 it says how many months the fund covers', /Covers/.test(v) && /2 months/.test(v));
   ok('🔑 the resilience ladder shows where you are', /One month/.test(v) && /you are here/.test(v));
-  ok('🔑 the next rung shows how much MORE is needed', /Three months/.test(v) && /2,000,000/.test(v));
-  ok('🔑 holdings split the buffer from the longer-term', /Buffer/.test(v) && /Longer-term/.test(v) && /Fixed depo/.test(v));
-  ok('...and total saved is shown', /8,000,000/.test(v));
+  ok('🔑 the next rung says how much MORE to move INTO the emergency fund', /Three months/.test(v) && /2,000,000 UGX more into your emergency fund/.test(v));
+  ok('🔑 other savings are shown, but plainly OFF the runway', /Other savings/.test(v) && /Unity SACCO/.test(v) && /Fixed depo/.test(v));
+  ok('...and total across all savings accounts is shown', /12,000,000/.test(v));
 }
 
-// nothing saved yet → a nudge, not a blank
+// 🔑 savings but NO emergency-fund account → nudge to open one, other savings still shown
 {
-  const { w, D } = boot(booksFetch({ savings: { ok: true, totalSaved: 0 } }));
+  const savings = { ok: true,
+    emergencyFund: 0, hasEmergencyFund: false, emergencyAccounts: [],
+    otherLiquid: [{ name: 'Unity SACCO', type: 'sacco', amount: 3_000_000, liquid: true }], otherLiquidTotal: 3_000_000,
+    longTerm: 0, longTermAccounts: [],
+    totalSaved: 3_000_000, monthlyOutgoings: 2_000_000, knowMonthly: true, runwayMonths: 0, resilience: null,
+    note: 'Your emergency fund lives in its own account. Add an “Emergency fund” account and move money into it — three to six months of expenses, kept for emergencies only.' };
+  const { w, D } = boot(booksFetch({ savings }));
+  await settle();
+  await w.SelahActions.goSavings(); await settle();
+  const v = D.getElementById('out-savings').textContent;
+  ok('🔑 with no emergency-fund account, it says the fund lives in its own account', /No emergency fund yet/.test(v) && /its own account/.test(v));
+  ok('...and offers to add one', !!D.querySelector('#out-savings [data-action="goAccounts"]'));
+  ok('...while still showing the other savings you do have', /Unity SACCO/.test(v));
+}
+
+// nothing at all → a nudge, not a blank
+{
+  const { w, D } = boot(booksFetch({ savings: { ok: true, totalSaved: 0, hasEmergencyFund: false } }));
   await settle();
   await w.SelahActions.goSavings(); await settle();
   ok('🔑 with nothing saved, it nudges you to set up an account',
      /No savings yet/.test(D.getElementById('out-savings').textContent));
 }
 
-// 🔴 no month cost known → runway is not invented, but holdings still show
+// 🔴 emergency fund exists but no month cost → shows the fund, runway not invented
 {
-  const savings = { ok: true, liquid: 1_000_000, longTerm: 0, totalSaved: 1_000_000,
-    knowMonthly: false, runwayMonths: null, resilience: null,
-    liquidAccounts: [{ name: 'MoMo', type: 'mobile_money', amount: 1_000_000, liquid: true }],
-    longTermAccounts: [],
-    note: 'Confirm a month of spending in your Books, and Selah can tell you how long your savings would last.' };
+  const savings = { ok: true, emergencyFund: 1_000_000, hasEmergencyFund: true, emergencyAccounts: [{ name: 'Cushion', type: 'emergency_fund', amount: 1_000_000, liquid: true }],
+    otherLiquid: [], otherLiquidTotal: 0, longTerm: 0, longTermAccounts: [],
+    totalSaved: 1_000_000, knowMonthly: false, runwayMonths: null, resilience: null,
+    note: 'Confirm a month of spending in your Books, and Selah can tell you how many months your emergency fund covers.' };
   const { w, D } = boot(booksFetch({ savings }));
   await settle();
   await w.SelahActions.goSavings(); await settle();
   const v = D.getElementById('out-savings').textContent;
   ok('🔴 with no month cost, the runway is not invented — it says why', /Confirm a month of spending/.test(v));
-  ok('...but what you hold is still shown', /1,000,000/.test(v));
+  ok('...but the fund you hold is still shown', /1,000,000/.test(v));
 }
 
 // ── THE "FORECASTED ITEMS" LIST — recurring buys that are due ───────────────
