@@ -144,6 +144,8 @@
     reconcile:   (id, actual, asOf)     => call('POST', '/books/accounts/' + id + '/reconcile', { actual, asOf }),
     health:      ()                     => call('GET',  '/books/health'),
     savings:     ()                     => call('GET',  '/books/savings'),
+    addGoal:     (g)                    => call('POST', '/books/savings/goals', g),
+    delGoal:     (id)                   => call('DELETE', '/books/savings/goals/' + id),
 
     period:      (b, from, to)          => call('GET',  '/entries/' + b + '/period?from=' + from + '&to=' + to),
     addTemplate: (b, t)                 => call('POST', '/entries/' + b + '/templates', t),

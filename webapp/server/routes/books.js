@@ -22,6 +22,7 @@ const B = require('../../engine/books');
 const A = require('../../engine/accounts');
 const R = require('../../engine/rollup');
 const SAV = require('../../engine/savings');
+const GOALS = require('../../engine/goals');
 const F = require('../../engine/forecast');
 
 const router = express.Router();
@@ -30,6 +31,7 @@ router.use(session.require);
 const num = (v) => (v === null || v === undefined || v === '' ? null : Number(decrypt(v)));
 const str = (v) => (v ? decrypt(v) : null);
 const today = () => new Date().toISOString().slice(0, 10);
+const iso = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d);
 
 /**
  * 🔴 THE PERMISSION CHECK. It lives HERE, in the query, not in the UI.
@@ -290,9 +292,66 @@ router.get('/savings', async (req, res, next) => {
          JOIN books b ON b.id = e.book_id
          LEFT JOIN categories c ON c.id = e.category_id
         WHERE b.owner_id = $1`, [req.taxpayerId]);
-    const act = R.actuals(ents.map(shapeEntry), from, to);
+    const entries = ents.map(shapeEntry);
+    const act = R.actuals(entries, from, to);
 
-    res.json({ ok: true, ...SAV.overview(balances, act ? act.spend : 0) });
+    // 🔑 GOALS — each watches a savings account. Progress is that account's balance;
+    //    pace is what has actually gone INTO it lately, for an honest projection.
+    const { rows: gs } = await db.query(
+      "SELECT * FROM savings_goals WHERE owner_id = $1 AND status = 'active' ORDER BY created_at", [req.taxpayerId]);
+    const balById = {};
+    for (const b of balances) balById[b.accountId] = b;
+    const goals = gs.map((g) => {
+      const acct = g.account_id ? balById[g.account_id] : null;
+      const saved = acct ? acct.computed : 0;
+      const pace = g.account_id ? monthlyInflow(entries, g.account_id, today()) : 0;
+      return {
+        id: g.id, accountId: g.account_id, accountName: acct ? acct.name : null,
+        ...GOALS.assess({ name: str(g.name_enc), target: num(g.target_enc),
+          saved, targetDate: g.target_date ? iso(g.target_date) : null, monthlyContribution: pace }, { asOf: today() }),
+      };
+    });
+
+    res.json({ ok: true, ...SAV.overview(balances, act ? act.spend : 0), goals });
+  } catch (e) { next(e); }
+});
+
+/** Average money moved INTO an account per month over the trailing window (default 3 months). */
+function monthlyInflow(entries, accountId, asOf, months = 3) {
+  const cutoff = new Date(Date.parse(asOf + 'T00:00:00Z') - months * 30.436875 * 86400000).toISOString().slice(0, 10);
+  let into = 0;
+  for (const e of entries) {
+    if (!e.occurredOn || e.occurredOn < cutoff) continue;
+    if (!['confirmed', 'unplanned'].includes(e.status)) continue;
+    const amt = e.actual != null ? e.actual : e.expected;
+    if (e.direction === 'in' && e.accountId === accountId) into += Number(amt || 0);
+    else if (e.direction === 'transfer' && e.toAccountId === accountId) into += Number(amt || 0);
+  }
+  return Math.round(into / months);
+}
+
+// ── GOAL CRUD ────────────────────────────────────────────────────────────────
+
+router.post('/savings/goals', async (req, res, next) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const target = Number(req.body?.target || 0);
+    if (!name) return res.status(400).json({ ok: false, error: 'NAME_REQUIRED', headline: 'Give the goal a name.' });
+    if (!(target > 0)) return res.status(400).json({ ok: false, error: 'TARGET_REQUIRED', headline: 'How much are you saving toward?' });
+    const { rows } = await db.query(
+      'INSERT INTO savings_goals (owner_id, account_id, name_enc, target_enc, target_date) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [req.taxpayerId, req.body?.accountId || null, encrypt(name), encrypt(target), req.body?.targetDate || null]);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'savings_goals', entityId: rows[0].id, req });
+    res.json({ ok: true, id: rows[0].id });
+  } catch (e) { next(e); }
+});
+
+router.delete('/savings/goals/:id', async (req, res, next) => {
+  try {
+    const { rowCount } = await db.query('DELETE FROM savings_goals WHERE id = $1 AND owner_id = $2', [req.params.id, req.taxpayerId]);
+    if (!rowCount) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'DELETE', entity: 'savings_goals', entityId: req.params.id, req });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 

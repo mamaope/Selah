@@ -744,7 +744,9 @@ function booksFetch(o) {
     if (/\/forecast$/.test(url)) return json(200, opts.forecast || { ok: true, comingUp: { items: [] }, suggestedBudget: { lines: [], lumpy: [] } });
     if (/\/health$/.test(url))   return json(200, opts.health || { ok: true, balances: [], netWorth: {}, emergencyFund: {}, savingsRate: {} });
     if (/\/savings$/.test(url))  return json(200, opts.savings || { ok: true, totalSaved: 0 });
-    if (/accounts\/mine$/.test(url)) return json(200, { ok: true, accounts: [], types: { cash: { label: 'Cash' } } });
+    if (/accounts\/mine$/.test(url)) return json(200, opts.mine || { ok: true, accounts: [], types: { cash: { label: 'Cash' } } });
+    if (/\/savings\/goals$/.test(url) && m === 'POST') { opts.goalAdded = JSON.parse(init.body); return json(200, { ok: true, id: 'g1' }); }
+    if (/\/savings\/goals\/[^/]+$/.test(url) && m === 'DELETE') { opts.goalDeleted = url; return json(200, { ok: true }); }
     return json(200, { ok: true });
   };
 }
@@ -2144,6 +2146,42 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
   ok('🔑 with no emergency-fund account, it says the fund lives in its own account', /No emergency fund yet/.test(v) && /its own account/.test(v));
   ok('...and offers to add one', !!D.querySelector('#out-savings [data-action="goAccounts"]'));
   ok('...while still showing the other savings you do have', /Unity SACCO/.test(v));
+}
+
+// 🎯 GOALS — a target, a date, the monthly, and a projection
+{
+  const savings = { ok: true,
+    emergencyFund: 4_000_000, hasEmergencyFund: true,
+    emergencyAccounts: [{ name: 'Cushion', type: 'emergency_fund', amount: 4_000_000, liquid: true }],
+    otherLiquid: [], otherLiquidTotal: 0, longTerm: 0, longTermAccounts: [],
+    totalSaved: 4_000_000, monthlyOutgoings: 2_000_000, knowMonthly: true, runwayMonths: 2,
+    resilience: { level: 1, maxLevel: 4, key: 'one', label: 'One month', blurb: 'x', months: 2,
+      next: { key: 'three', label: 'Three months', atMonths: 3, needMore: 2_000_000 },
+      ladder: [{ key: 'one', label: 'One month', atMonths: 1, reached: true, current: true }] },
+    goals: [
+      { id: 'g1', name: 'Laptop', accountName: 'Absa Savings', target: 1_200_000, saved: 300_000, remaining: 900_000,
+        pct: 25, reached: false, targetDate: '2026-12-21', requiredMonthly: 180_000, onTrack: false,
+        projectedFinish: '2027-03-01', says: 'x', overdue: false },
+    ],
+    note: null };
+  const o = { savings, mine: { ok: true, accounts: [{ id: 'a9', name: 'Absa Savings', type: 'savings' }], types: {} } };
+  const { w, D } = boot(booksFetch(o));
+  await settle();
+  await w.SelahActions.goSavings(); await settle();
+
+  const v = D.getElementById('out-savings').textContent;
+  ok('🎯 a goal shows its name, progress and required monthly', /Laptop/.test(v) && /300,000 of 1,200,000/.test(v) && /180,000/.test(v));
+  ok('🔴 the projection is labelled a projection, not a promise', /a projection, not a promise/.test(v));
+  ok('the backing-account picker is filled with savings accounts', !!D.querySelector('#goal-acct option[value="a9"]'));
+
+  // create a goal → it POSTs target + date
+  D.getElementById('goal-name').value = 'Land deposit';
+  D.getElementById('goal-target').value = '5000000';
+  D.getElementById('goal-date').value = '2027-07-01';
+  D.getElementById('goal-acct').value = 'a9';
+  await w.SelahActions.goalAdd(); await settle();
+  ok('🎯 adding a goal POSTs its target, date and backing account',
+     o.goalAdded && o.goalAdded.target === 5000000 && o.goalAdded.targetDate === '2027-07-01' && o.goalAdded.accountId === 'a9');
 }
 
 // nothing at all → a nudge, not a blank

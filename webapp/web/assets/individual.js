@@ -646,7 +646,7 @@
     if (!handle(r)) return;
     const out = $('out-savings');
 
-    if (!r.totalSaved && !r.hasEmergencyFund) {
+    if (!r.totalSaved && !r.hasEmergencyFund && !(r.goals && r.goals.length)) {
       out.innerHTML = `<div class="result"><p class="cap">No savings yet</p>
         <p class="because">Your emergency fund lives in its own account — add an <strong>Emergency fund</strong> account and move money into it, three to six months of expenses kept for emergencies only. Other savings (a SACCO, a fixed deposit, a unit trust) go in their own accounts too.</p>
         <button class="cta" data-action="goAccounts">Set up an account →</button></div>`;
@@ -697,8 +697,79 @@
 
     const total = `<p class="src">Total across all savings &amp; investment accounts: <strong>${ugx(r.totalSaved)} UGX</strong></p>`;
 
-    out.innerHTML = `<div class="out">${efCard}${otherCard}${total}</div>`;
+    // ── GOALS — a target, a date, and a pot ──
+    const goalCard = renderGoals(r.goals || []);
+
+    out.innerHTML = `<div class="out">${efCard}${otherCard}${total}${goalCard}</div>`;
+    fillGoalAccounts();
   }
+
+  function renderGoals(goals) {
+    const rows = goals.map((g) => {
+      const pct = g.pct != null ? g.pct : 0;
+      const bar = `<span class="bar${g.overdue ? ' over' : ''}"><i style="width:${Math.min(100, pct)}%"></i></span>`;
+      const line = g.reached
+        ? '<span class="pill ok">reached 🎉</span>'
+        : (g.requiredMonthly != null
+            ? `<strong>${ugx(g.requiredMonthly)}</strong>/mo to hit ${esc(g.targetDate)}` +
+              (g.onTrack === true ? ' <span class="pill ok">on track</span>' : g.onTrack === false ? ' <span class="pill over">behind</span>' : '')
+            : (g.overdue ? '<span class="pill over">overdue</span>' : esc(g.says)));
+      const proj = g.projectedFinish ? `<p class="src">At your recent pace, done around <strong>${esc(g.projectedFinish)}</strong> — a projection, not a promise.</p>` : '';
+      return `<div class="result" style="padding:.7rem .9rem">
+          <div class="row" style="justify-content:space-between;align-items:baseline">
+            <strong>${esc(g.name)}</strong>
+            <button class="link" data-action="goalDel" data-id="${esc(g.id)}" aria-label="Remove goal">✕</button>
+          </div>
+          <p class="src">${ugx(g.saved)} of ${ugx(g.target)}${g.accountName ? ' · in ' + esc(g.accountName) : ''}</p>
+          ${bar}
+          <p class="because" style="margin-top:.3rem">${line}</p>
+          ${proj}
+        </div>`;
+    }).join('');
+
+    return `<div class="result">
+        <div class="row" style="justify-content:space-between;align-items:baseline">
+          <p class="cap" style="margin:0">Goals</p>
+        </div>
+        ${goals.length ? rows : '<p class="because">Save toward something specific — school fees, a laptop, a land deposit. Set a target and a date, back it with a savings account, and Selah tells you the monthly.</p>'}
+        <div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap;margin-top:.6rem">
+          <div><label>Goal</label><input type="text" id="goal-name" placeholder="School fees, laptop, land"></div>
+          <div><label>Target (UGX)</label><input type="number" id="goal-target" placeholder="1000000"></div>
+          <div><label>By when</label><input type="date" id="goal-date"></div>
+          <div><label>Backing account</label><select id="goal-acct"><option value="">— optional —</option></select></div>
+          <button class="primary" data-action="goalAdd">Add goal</button>
+        </div>
+        <p id="goal-msg" class="hint"></p>
+      </div>`;
+  }
+
+  // populate the backing-account picker with the user's savings accounts, after render
+  async function fillGoalAccounts() {
+    const sel = $('goal-acct'); if (!sel) return;
+    const r = await API.myAccounts();
+    if (!r || !r.ok) return;
+    const savingsTypes = ['emergency_fund', 'savings', 'sacco', 'vsla', 'fixed_deposit', 'unit_trust', 'treasury', 'shares', 'land'];
+    const opts = (r.accounts || []).filter((a) => savingsTypes.includes(a.type))
+      .map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+    sel.innerHTML = '<option value="">— optional —</option>' + opts;
+  }
+
+  A.goalAdd = async () => {
+    const name = $('goal-name').value.trim();
+    const target = Number($('goal-target').value || 0);
+    if (!name) { $('goal-msg').textContent = 'Give the goal a name.'; return; }
+    if (!(target > 0)) { $('goal-msg').textContent = 'How much are you saving toward?'; return; }
+    const r = await API.addGoal({ name, target, targetDate: $('goal-date').value || null, accountId: $('goal-acct').value || null });
+    if (!handle(r)) return;
+    if (!r.ok) { $('goal-msg').textContent = r.headline || 'That did not work.'; return; }
+    renderSavings();
+  };
+
+  A.goalDel = async (el) => {
+    const r = await API.delGoal(el.dataset.id);
+    if (!handle(r)) return;
+    renderSavings();
+  };
 
   A.goData = renderData;
 
