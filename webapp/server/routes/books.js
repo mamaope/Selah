@@ -423,6 +423,46 @@ router.delete('/savings/goals/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/**
+ * 🔑 CONTRIBUTE TO A GOAL — money MOVES into the goal's backing account.
+ *
+ * A goal watches an account; contributing is a transfer FROM a source account you
+ * choose INTO that account. It is a real entry, so the account balance (and thus
+ * the goal's progress) grows, net worth is unchanged (money only moved), and the
+ * saving counts toward your streak. We never fabricate money — a contribution is
+ * a movement between two of your own accounts in this Book.
+ */
+router.post('/savings/goals/:id/contribute', async (req, res, next) => {
+  try {
+    const amount = Number(req.body?.amount || 0);
+    const fromAccountId = req.body?.fromAccountId;
+    if (!(amount > 0)) return res.status(400).json({ ok: false, error: 'AMOUNT_REQUIRED', headline: 'How much are you putting in?' });
+
+    const { rows: gs } = await db.query('SELECT * FROM savings_goals WHERE id = $1 AND owner_id = $2', [req.params.id, req.taxpayerId]);
+    if (!gs.length) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    const goal = gs[0];
+    if (!goal.account_id) return res.status(400).json({ ok: false, error: 'NO_ACCOUNT',
+      headline: 'Link a savings account to this goal first.',
+      why: ['A goal watches an account — contributions move money INTO it. Without one, there is nowhere for the money to go.'] });
+    if (!fromAccountId || fromAccountId === goal.account_id) return res.status(400).json({ ok: false, error: 'BAD_SOURCE',
+      headline: 'Where is the money coming from?', why: ['A contribution moves money from another account into the goal\'s account — the two must be different.'] });
+
+    // 🔴 both accounts must live in THIS goal's Book — no cross-book money teleporting.
+    const { rows: accs } = await db.query('SELECT id, currency FROM accounts WHERE id = ANY($1) AND book_id = $2', [[fromAccountId, goal.account_id], goal.book_id]);
+    if (accs.length < 2) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    const currency = (accs.find((a) => a.id === goal.account_id) || {}).currency === 'USD' ? 'USD' : 'UGX';
+
+    const { rows } = await db.query(
+      `INSERT INTO entries (book_id, author_id, occurred_on, direction, label_enc, category_id, currency,
+                            expected_enc, actual_enc, status, note_enc, account_id, from_account_id, to_account_id)
+       VALUES ($1,$2,$3,'transfer',$4,NULL,$5,$6,$6,'unplanned',NULL,NULL,$7,$8) RETURNING id`,
+      [goal.book_id, req.taxpayerId, today(), encrypt('Into: ' + (str(goal.name_enc) || 'goal')), currency,
+       encrypt(amount), fromAccountId, goal.account_id]);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'entries', entityId: rows[0].id, req });
+    res.json({ ok: true, id: rows[0].id, note: 'Moved into your goal. Its progress — and your streak — just grew.' });
+  } catch (e) { next(e); }
+});
+
 /** 🔑 "Where did my money actually go?" */
 router.post('/accounts/:id/reconcile', async (req, res, next) => {
   try {

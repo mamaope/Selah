@@ -808,6 +808,18 @@ let savingsData = null;                 // last /savings response, cached for su
               (g.onTrack === true ? ' <span class="pill ok">on track</span>' : g.onTrack === false ? ' <span class="pill over">behind</span>' : '')
             : (g.overdue ? '<span class="pill over">overdue</span>' : esc(g.says)));
       const proj = g.projectedFinish ? `<p class="src">At your recent pace, done around <strong>${esc(g.projectedFinish)}</strong> — a projection, not a promise.</p>` : '';
+      const contribute = g.reached ? '' : (g.accountId
+        ? `<button class="link" data-action="goalContribToggle" data-id="${esc(g.id)}">＋ Contribute</button>
+           <div id="cf-${esc(g.id)}" hidden style="margin-top:.4rem;border-top:1px solid var(--border);padding-top:.4rem">
+             <div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+               <div><label>Amount (UGX)</label><input type="number" id="cf-amt-${esc(g.id)}" placeholder="100000"></div>
+               <div><label>From</label><select id="cf-from-${esc(g.id)}"><option value="">— choose —</option></select></div>
+               <button class="primary" data-action="goalContribute" data-id="${esc(g.id)}">Add money</button>
+             </div>
+             <p class="src">Moves money from that account into <strong>${esc(g.accountName || 'the goal')}</strong>. Money moved, not created.</p>
+             <p id="cf-msg-${esc(g.id)}" class="hint"></p>
+           </div>`
+        : '<p class="src">Link a savings account to this goal to contribute to it.</p>');
       return `<div class="result" style="padding:.7rem .9rem">
           <div class="row" style="justify-content:space-between;align-items:baseline">
             <strong>${esc(g.name)}</strong>
@@ -817,6 +829,7 @@ let savingsData = null;                 // last /savings response, cached for su
           ${bar}
           <p class="because" style="margin-top:.3rem">${line}</p>
           ${proj}
+          ${contribute}
         </div>`;
     }).join('');
 
@@ -838,14 +851,22 @@ let savingsData = null;                 // last /savings response, cached for su
 
   // populate the backing-account picker with the user's savings accounts, after render
   async function fillGoalAccounts() {
-    const sel = $('goal-acct'); if (!sel) return;
     const r = await API.myAccounts();
     if (!r || !r.ok) return;
+    const inBook = (r.accounts || []).filter((a) => !savingsBook || a.bookId === savingsBook);   // this Book's accounts
+
+    // create-goal picker: savings-type accounts only
     const savingsTypes = ['emergency_fund', 'savings', 'sacco', 'vsla', 'fixed_deposit', 'unit_trust', 'treasury', 'shares', 'land'];
-    const opts = (r.accounts || [])
-      .filter((a) => savingsTypes.includes(a.type) && (!savingsBook || a.bookId === savingsBook))   // this Book's savings accounts
-      .map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
-    sel.innerHTML = '<option value="">— optional —</option>' + opts;
+    const sel = $('goal-acct');
+    if (sel) sel.innerHTML = '<option value="">— optional —</option>' +
+      inBook.filter((a) => savingsTypes.includes(a.type)).map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+
+    // per-goal contribute source: any account in the Book EXCEPT the goal's own
+    ((savingsData && savingsData.goals) || []).forEach((g) => {
+      const fs = $('cf-from-' + g.id);
+      if (fs) fs.innerHTML = '<option value="">— choose —</option>' +
+        inBook.filter((a) => a.id !== g.accountId).map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+    });
   }
 
 
@@ -858,6 +879,24 @@ let savingsData = null;                 // last /savings response, cached for su
     if (!handle(r)) return;
     if (!r.ok) { $('goal-msg').textContent = r.headline || 'That did not work.'; return; }
     renderSavingsInto('bk-savings', savingsBook);
+  };
+
+  A.goalContribToggle = (el) => {
+    const f = $('cf-' + el.dataset.id);
+    if (f) { f.hidden = !f.hidden; if (!f.hidden) setTimeout(() => { const a = $('cf-amt-' + el.dataset.id); if (a) a.focus(); }, 0); }
+  };
+
+  A.goalContribute = async (el) => {
+    const id = el.dataset.id;
+    const amount = Number($('cf-amt-' + id).value || 0);
+    const fromAccountId = $('cf-from-' + id).value;
+    const msg = $('cf-msg-' + id);
+    if (!(amount > 0)) { if (msg) msg.textContent = 'How much are you putting in?'; return; }
+    if (!fromAccountId) { if (msg) msg.textContent = 'Where is the money coming from?'; return; }
+    const r = await API.contributeGoal(id, { amount, fromAccountId });
+    if (!handle(r)) return;
+    if (!r.ok) { if (msg) msg.textContent = r.headline || 'That did not work.'; return; }
+    renderSavingsInto('bk-savings', savingsBook);   // progress + streak just grew
   };
 
   A.goalDel = async (el) => {

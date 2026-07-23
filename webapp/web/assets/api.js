@@ -146,6 +146,7 @@
     savings:     (book)                 => call('GET',  '/books/savings' + (book ? '?book=' + book : '')),
     addGoal:     (g)                    => call('POST', '/books/savings/goals', g),
     delGoal:     (id)                   => call('DELETE', '/books/savings/goals/' + id),
+    contributeGoal: (id, body)          => call('POST', '/books/savings/goals/' + id + '/contribute', body),
 
     period:      (b, from, to)          => call('GET',  '/entries/' + b + '/period?from=' + from + '&to=' + to),
     addTemplate: (b, t)                 => call('POST', '/entries/' + b + '/templates', t),

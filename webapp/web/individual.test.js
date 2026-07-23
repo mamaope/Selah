@@ -746,6 +746,7 @@ function booksFetch(o) {
     if (/\/savings(\?|$)/.test(url))  return json(200, opts.savings || { ok: true, totalSaved: 0 });
     if (/accounts\/mine$/.test(url)) return json(200, opts.mine || { ok: true, accounts: [], types: { cash: { label: 'Cash' } } });
     if (/\/savings\/goals$/.test(url) && m === 'POST') { opts.goalAdded = JSON.parse(init.body); return json(200, { ok: true, id: 'g1' }); }
+    if (/\/savings\/goals\/[^/]+\/contribute$/.test(url) && m === 'POST') { opts.contributed = JSON.parse(init.body); return json(200, { ok: true, id: 'e5' }); }
     if (/\/savings\/goals\/[^/]+$/.test(url) && m === 'DELETE') { opts.goalDeleted = url; return json(200, { ok: true }); }
     return json(200, { ok: true });
   };
@@ -2199,12 +2200,12 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
       next: { key: 'three', label: 'Three months', atMonths: 3, needMore: 2_000_000 },
       ladder: [{ key: 'one', label: 'One month', atMonths: 1, reached: true, current: true }] },
     goals: [
-      { id: 'g1', name: 'Laptop', accountName: 'Absa Savings', target: 1_200_000, saved: 300_000, remaining: 900_000,
+      { id: 'g1', name: 'Laptop', accountId: 'a9', accountName: 'Absa Savings', target: 1_200_000, saved: 300_000, remaining: 900_000,
         pct: 25, reached: false, targetDate: '2026-12-21', requiredMonthly: 180_000, onTrack: false,
         projectedFinish: '2027-03-01', says: 'x', overdue: false },
     ],
     note: null };
-  const o = { savings, mine: { ok: true, accounts: [{ id: 'a9', name: 'Absa Savings', type: 'savings', bookId: 'b1' }], types: {} } };
+  const o = { savings, mine: { ok: true, accounts: [{ id: 'a9', name: 'Absa Savings', type: 'savings', bookId: 'b1' }, { id: 'a1', name: 'MTN MoMo', type: 'mobile_money', bookId: 'b1' }], types: {} } };
   const { w, D } = boot(booksFetch(o));
   await settle();
   await w.SelahActions.goBooks(); await settle();
@@ -2225,6 +2226,16 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
   await w.SelahActions.goalAdd(); await settle();
   ok('🎯 adding a goal POSTs its target, date and backing account',
      o.goalAdded && o.goalAdded.target === 5000000 && o.goalAdded.targetDate === '2027-07-01' && o.goalAdded.accountId === 'a9');
+
+  // 💰 CONTRIBUTE to a goal — money moves from a source account into the goal's account
+  ok('💰 a goal with an account offers Contribute', !!D.querySelector('[data-action="goalContribToggle"][data-id="g1"]'));
+  w.SelahActions.goalContribToggle({ dataset: { id: 'g1' } }); await settle();
+  ok('...the source picker lists the Book\'s OTHER accounts, not the goal\'s own',
+     !!D.querySelector('#cf-from-g1 option[value="a1"]') && !D.querySelector('#cf-from-g1 option[value="a9"]'));
+  D.getElementById('cf-amt-g1').value = '250000';
+  D.getElementById('cf-from-g1').value = 'a1';
+  await w.SelahActions.goalContribute({ dataset: { id: 'g1' } }); await settle();
+  ok('💰 contributing POSTs the amount and the source account', o.contributed && o.contributed.amount === 250000 && o.contributed.fromAccountId === 'a1');
 }
 
 // nothing at all → a nudge, not a blank
