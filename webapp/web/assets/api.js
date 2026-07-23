@@ -143,7 +143,7 @@
     setOpening:  (id, amount, asOf)     => call('POST', '/books/accounts/' + id + '/opening', { amount, asOf }),
     reconcile:   (id, actual, asOf)     => call('POST', '/books/accounts/' + id + '/reconcile', { actual, asOf }),
     health:      ()                     => call('GET',  '/books/health'),
-    savings:     ()                     => call('GET',  '/books/savings'),
+    savings:     (book)                 => call('GET',  '/books/savings' + (book ? '?book=' + book : '')),
     addGoal:     (g)                    => call('POST', '/books/savings/goals', g),
     delGoal:     (id)                   => call('DELETE', '/books/savings/goals/' + id),
 

@@ -700,7 +700,7 @@ function booksFetch(o) {
     const m = String((init && init.method) || 'GET');
     if (url === '/api/compliance') return json(200, { ok: true, canStoreYourData: true });
     if (url === '/api/me')         return json(200, { ok: true, me: { id: 'u1', kind: 'individual' } });
-    if (url === '/api/books')      return json(200, { ok: true, books: [{ id: 'b1', name: 'Home', isDefault: true, kind: 'personal', currency: 'UGX' }] });
+    if (url === '/api/books')      return json(200, { ok: true, books: opts.books || [{ id: 'b1', name: 'Home', isDefault: true, kind: 'personal', currency: 'UGX' }] });
     if (/\/categories$/.test(url) && m === 'GET') return json(200, { ok: true, categories: opts.categories || [
       { id: 'c1', key: 'rent',        label: 'Rent',        direction: 'out' },
       { id: 'c2', key: 'food',        label: 'Food',        direction: 'out' },
@@ -2154,6 +2154,29 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
   ok('🔴 it says plainly this is information, not advice', /not.*licensed financial adviser/i.test(v) && /not a recommendation|not a solicitation/i.test(v));
 }
 
+// 🔑 SAVINGS IS PER-BOOK — a book picker appears when there is more than one Book
+{
+  const savings = { ok: true, book: 'b1',
+    emergencyFund: 4_000_000, hasEmergencyFund: true,
+    emergencyAccounts: [{ name: 'Cushion', type: 'emergency_fund', amount: 4_000_000, liquid: true }],
+    otherLiquid: [], otherLiquidTotal: 0, longTerm: 0, longTermAccounts: [],
+    totalSaved: 4_000_000, monthlyOutgoings: 2_000_000, knowMonthly: true, runwayMonths: 2,
+    resilience: { level: 1, maxLevel: 4, key: 'one', label: 'One month', blurb: 'x', months: 2,
+      next: { key: 'three', label: 'Three months', atMonths: 3, needMore: 2_000_000 },
+      ladder: [{ key: 'one', label: 'One month', atMonths: 1, reached: true, current: true }] },
+    note: null };
+  const o = { savings, books: [
+    { id: 'b1', name: 'Home', isDefault: true, kind: 'personal', currency: 'UGX' },
+    { id: 'b2', name: 'The Shop', isDefault: false, kind: 'personal', currency: 'UGX' },
+  ] };
+  const { w, D } = boot(booksFetch(o));
+  await settle();
+  await w.SelahActions.goSavings(); await settle();
+  ok('🔑 with two Books, a Book picker is shown on the Savings view', !!D.getElementById('sv-book'));
+  ok('...defaulted to the scoped Book (Home)', D.getElementById('sv-book').value === 'b1');
+  ok('...and lists the other Book to switch to', /The Shop/.test(D.getElementById('sv-book').innerHTML));
+}
+
 // 🔑 savings but NO emergency-fund account → nudge to open one, other savings still shown
 {
   const savings = { ok: true,
@@ -2213,7 +2236,7 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
   await settle();
   await w.SelahActions.goSavings(); await settle();
   ok('🔑 with nothing saved, it nudges you to set up an account',
-     /No savings yet/.test(D.getElementById('out-savings').textContent));
+     /No savings in this Book yet/.test(D.getElementById('out-savings').textContent));
 }
 
 // 🔴 emergency fund exists but no month cost → shows the fund, runway not invented

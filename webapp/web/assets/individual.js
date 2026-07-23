@@ -639,16 +639,29 @@
   A.goMoney = renderMoney;
   A.goSavings = renderSavings;
 
-  // 🌱 SAVINGS — the emergency fund (its own account), plus other savings.
+  // 🌱 SAVINGS — per BOOK: its accounts, its expenses, its runway.
+  let savingsBook = null;                 // the chosen book (null = the default book)
+  let savingsBooks = [];                  // the list, for the picker
+
   async function renderSavings() {
     show('savings');
-    const r = await API.savings();
+    const [bl, r] = await Promise.all([API.books(), API.savings(savingsBook)]);
     if (!handle(r)) return;
+    savingsBooks = (bl && bl.ok && bl.books) || [];
+    savingsBook = r.book || savingsBook;   // lock to what the server scoped to
     const out = $('out-savings');
 
+    // book picker — only worth showing when there is more than one Book
+    const picker = savingsBooks.length > 1
+      ? `<div class="row" style="gap:.5rem;align-items:center;margin-bottom:.6rem">
+           <label for="sv-book" class="src">Book</label>
+           <select id="sv-book">${savingsBooks.map((b) => `<option value="${esc(b.id)}"${b.id === savingsBook ? ' selected' : ''}>${esc(b.name)}</option>`).join('')}</select>
+         </div>`
+      : '';
+
     if (!r.totalSaved && !r.hasEmergencyFund && !(r.goals && r.goals.length)) {
-      out.innerHTML = `<div class="result"><p class="cap">No savings yet</p>
-        <p class="because">Your emergency fund lives in its own account — add an <strong>Emergency fund</strong> account and move money into it, three to six months of expenses kept for emergencies only. Other savings (a SACCO, a fixed deposit, a unit trust) go in their own accounts too.</p>
+      out.innerHTML = picker + `<div class="result"><p class="cap">No savings in this Book yet</p>
+        <p class="because">Savings live in the Book they belong to. Add an <strong>Emergency fund</strong> account to this Book and move money into it — three to six months of this Book's expenses, kept for emergencies only. A SACCO, a fixed deposit or a unit trust go in their own accounts too.</p>
         <button class="cta" data-action="goAccounts">Set up an account →</button></div>`;
       return;
     }
@@ -706,7 +719,7 @@
     // ── WHERE YOUR MONEY COULD WORK — the ladder + after-tax options ──
     const investCard = renderInvest(r.invest);
 
-    out.innerHTML = `<div class="out">${gameCard}${efCard}${otherCard}${total}${goalCard}${investCard}</div>`;
+    out.innerHTML = picker + `<div class="out">${gameCard}${efCard}${otherCard}${total}${goalCard}${investCard}</div>`;
     fillGoalAccounts();
   }
 
@@ -799,17 +812,23 @@
     const r = await API.myAccounts();
     if (!r || !r.ok) return;
     const savingsTypes = ['emergency_fund', 'savings', 'sacco', 'vsla', 'fixed_deposit', 'unit_trust', 'treasury', 'shares', 'land'];
-    const opts = (r.accounts || []).filter((a) => savingsTypes.includes(a.type))
+    const opts = (r.accounts || [])
+      .filter((a) => savingsTypes.includes(a.type) && (!savingsBook || a.bookId === savingsBook))   // this Book's savings accounts
       .map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
     sel.innerHTML = '<option value="">— optional —</option>' + opts;
   }
+
+  // switching the Book re-scopes the whole savings view
+  document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'sv-book') { savingsBook = e.target.value; renderSavings(); }
+  });
 
   A.goalAdd = async () => {
     const name = $('goal-name').value.trim();
     const target = Number($('goal-target').value || 0);
     if (!name) { $('goal-msg').textContent = 'Give the goal a name.'; return; }
     if (!(target > 0)) { $('goal-msg').textContent = 'How much are you saving toward?'; return; }
-    const r = await API.addGoal({ name, target, targetDate: $('goal-date').value || null, accountId: $('goal-acct').value || null });
+    const r = await API.addGoal({ name, target, targetDate: $('goal-date').value || null, accountId: $('goal-acct').value || null, book: savingsBook || undefined });
     if (!handle(r)) return;
     if (!r.ok) { $('goal-msg').textContent = r.headline || 'That did not work.'; return; }
     renderSavings();

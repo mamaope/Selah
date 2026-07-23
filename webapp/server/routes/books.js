@@ -65,6 +65,7 @@ const shapeAccount = (a) => ({
   id: a.id, name: str(a.name_enc), type: a.type, currency: a.currency,
   liquid: a.liquid,
   shared: Boolean(a.book_id),
+  bookId: a.book_id || null,
   // 🔴 A PERSONAL account belongs to a person. A BOOK account belongs to the Book,
   //    and every member sees it — balance and all. That is the whole boundary.
   scope: a.book_id ? 'book' : 'personal',
@@ -180,14 +181,21 @@ router.post('/accounts', async (req, res, next) => {
     const { name, type, currency, bookId, liquid } = req.body || {};
     if (!name || !A.ACCOUNT_TYPES[type]) return res.status(400).json({ ok: false, error: 'BAD_ACCOUNT' });
 
-    // A BOOK account is visible to every member. A PERSONAL one is visible to nobody
-    // but its owner. The database enforces exactly-one-of; we choose which.
-    if (bookId && !await mayUse(bookId, req.taxpayerId)) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    // 🔑 ACCOUNTS ARE BOOK-SCOPED. Savings, budgets and the runway are all read
+    //    per book, so an account must belong to one. If none is named, it lands in
+    //    the owner's default book.
+    let book = bookId;
+    if (book) { if (!await mayUse(book, req.taxpayerId)) return res.status(404).json({ ok: false, error: 'NOT_FOUND' }); }
+    else {
+      const { rows: dflt } = await db.query('SELECT id FROM books WHERE owner_id = $1 AND is_default LIMIT 1', [req.taxpayerId]);
+      if (!dflt.length) return res.status(400).json({ ok: false, error: 'NO_BOOK', headline: 'Create a Book first — an account belongs to one.' });
+      book = dflt[0].id;
+    }
 
     const { rows } = await db.query(
       `INSERT INTO accounts (owner_id, book_id, name_enc, type, currency, liquid)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [bookId ? null : req.taxpayerId, bookId || null, encrypt(String(name).trim()), type,
+       VALUES (NULL,$1,$2,$3,$4,$5) RETURNING id`,
+      [book, encrypt(String(name).trim()), type,
        currency === 'USD' ? 'USD' : 'UGX', liquid === undefined ? null : Boolean(liquid)]
     );
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'accounts', entityId: rows[0].id, req });
@@ -281,9 +289,14 @@ router.get('/health', async (req, res, next) => {
  */
 router.get('/savings', async (req, res, next) => {
   try {
+    // 🔑 SAVINGS IS PER-BOOK. Scope to one book (its accounts, its expenses), so the
+    //    runway is apples-to-apples. Default to the owner's default book.
+    const book = await resolveBook(req.query.book, req.taxpayerId);
+    if (!book) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+
     const balances = await db.audited(
       { actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'READ', entity: 'accounts', req },
-      () => balancesFor(req.taxpayerId)
+      () => balancesForBook(book)
     );
 
     const from = req.query.from || `${today().slice(0, 7)}-01`;
@@ -291,16 +304,15 @@ router.get('/savings', async (req, res, next) => {
 
     const { rows: ents } = await db.query(
       `SELECT e.*, c.key AS category_key FROM entries e
-         JOIN books b ON b.id = e.book_id
          LEFT JOIN categories c ON c.id = e.category_id
-        WHERE b.owner_id = $1`, [req.taxpayerId]);
+        WHERE e.book_id = $1`, [book]);
     const entries = ents.map(shapeEntry);
     const act = R.actuals(entries, from, to);
 
     // 🔑 GOALS — each watches a savings account. Progress is that account's balance;
     //    pace is what has actually gone INTO it lately, for an honest projection.
     const { rows: gs } = await db.query(
-      "SELECT * FROM savings_goals WHERE owner_id = $1 AND status = 'active' ORDER BY created_at", [req.taxpayerId]);
+      "SELECT * FROM savings_goals WHERE book_id = $1 AND status = 'active' ORDER BY created_at", [book]);
     const balById = {};
     for (const b of balances) balById[b.accountId] = b;
     const goals = gs.map((g) => {
@@ -340,7 +352,7 @@ router.get('/savings', async (req, res, next) => {
       verifiedOn: INVEST.VERIFIED_ON,
     };
 
-    res.json({ ok: true, ...overview, goals, gamification, invest });
+    res.json({ ok: true, book, ...overview, goals, gamification, invest });
   } catch (e) { next(e); }
 });
 
@@ -392,9 +404,11 @@ router.post('/savings/goals', async (req, res, next) => {
     const target = Number(req.body?.target || 0);
     if (!name) return res.status(400).json({ ok: false, error: 'NAME_REQUIRED', headline: 'Give the goal a name.' });
     if (!(target > 0)) return res.status(400).json({ ok: false, error: 'TARGET_REQUIRED', headline: 'How much are you saving toward?' });
+    const book = await resolveBook(req.body?.book, req.taxpayerId);
+    if (!book) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
     const { rows } = await db.query(
-      'INSERT INTO savings_goals (owner_id, account_id, name_enc, target_enc, target_date) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [req.taxpayerId, req.body?.accountId || null, encrypt(name), encrypt(target), req.body?.targetDate || null]);
+      'INSERT INTO savings_goals (owner_id, book_id, account_id, name_enc, target_enc, target_date) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [req.taxpayerId, book, req.body?.accountId || null, encrypt(name), encrypt(target), req.body?.targetDate || null]);
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'savings_goals', entityId: rows[0].id, req });
     res.json({ ok: true, id: rows[0].id });
   } catch (e) { next(e); }
@@ -513,4 +527,28 @@ module.exports = router;
 module.exports.mayUse = mayUse;
 module.exports.entriesOf = entriesOf;
 module.exports.usableAccounts = usableAccounts;
+/** The book to scope to: a named one the user may use, else their default book. */
+async function resolveBook(bookId, taxpayerId) {
+  if (bookId) return (await mayUse(bookId, taxpayerId)) ? bookId : null;
+  const { rows } = await db.query('SELECT id FROM books WHERE owner_id = $1 AND is_default LIMIT 1', [taxpayerId]);
+  return rows.length ? rows[0].id : null;
+}
+
+async function balancesForBook(bookId) {
+  const { rows: accs } = await db.query('SELECT * FROM accounts WHERE book_id = $1', [bookId]);
+  const { rows: ents } = await db.query('SELECT * FROM entries WHERE book_id = $1', [bookId]);
+  const entries = ents.map(shapeEntry);
+  const out = [];
+  for (const a of accs) {
+    const { rows: ob } = await db.query(
+      'SELECT * FROM opening_balances WHERE account_id = $1 ORDER BY as_of DESC LIMIT 1', [a.id]);
+    const opening = ob[0] ? { amount: num(ob[0].amount_enc), asOf: ob[0].as_of.toISOString().slice(0, 10) } : { amount: 0, asOf: null };
+    const acc = { ...shapeAccount(a) };
+    const b = A.computedBalance(acc, opening, entries);
+    out.push({ ...b, currency: a.currency, scope: acc.scope, name: acc.name });
+  }
+  return out;
+}
+module.exports.balancesForBook = balancesForBook;
+
 module.exports.balancesFor = balancesFor;
