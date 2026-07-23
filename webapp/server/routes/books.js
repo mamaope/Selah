@@ -88,6 +88,7 @@ const shapeEntry = (e) => ({
   toAccountId: e.to_account_id,
   templateLineId: e.template_line_id,
   createdAt: e.created_at ? e.created_at.toISOString() : null,
+  goalId: e.goal_id || null,
 });
 
 async function entriesOf(bookId) {
@@ -317,8 +318,9 @@ router.get('/savings', async (req, res, next) => {
     for (const b of balances) balById[b.accountId] = b;
     const goals = gs.map((g) => {
       const acct = g.account_id ? balById[g.account_id] : null;
-      const saved = acct ? acct.computed : 0;
-      const pace = g.account_id ? monthlyInflow(entries, g.account_id, today()) : 0;
+      // 🔑 progress is what is TAGGED to this goal, not the whole account balance
+      const saved = g.account_id ? goalSaved(entries, g.id, g.account_id) : 0;
+      const pace = g.account_id ? goalPace(entries, g.id, g.account_id, today()) : 0;
       return {
         id: g.id, accountId: g.account_id, accountName: acct ? acct.name : null,
         ...GOALS.assess({ name: str(g.name_enc), target: num(g.target_enc),
@@ -454,10 +456,10 @@ router.post('/savings/goals/:id/contribute', async (req, res, next) => {
 
     const { rows } = await db.query(
       `INSERT INTO entries (book_id, author_id, occurred_on, direction, label_enc, category_id, currency,
-                            expected_enc, actual_enc, status, note_enc, account_id, from_account_id, to_account_id)
-       VALUES ($1,$2,$3,'transfer',$4,NULL,$5,$6,$6,'unplanned',NULL,NULL,$7,$8) RETURNING id`,
+                            expected_enc, actual_enc, status, note_enc, account_id, from_account_id, to_account_id, goal_id)
+       VALUES ($1,$2,$3,'transfer',$4,NULL,$5,$6,$6,'unplanned',NULL,NULL,$7,$8,$9) RETURNING id`,
       [goal.book_id, req.taxpayerId, today(), encrypt('Into: ' + (str(goal.name_enc) || 'goal')), currency,
-       encrypt(amount), fromAccountId, goal.account_id]);
+       encrypt(amount), fromAccountId, goal.account_id, goal.id]);
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'entries', entityId: rows[0].id, req });
     res.json({ ok: true, id: rows[0].id, note: 'Moved into your goal. Its progress — and your streak — just grew.' });
   } catch (e) { next(e); }
@@ -567,6 +569,28 @@ module.exports = router;
 module.exports.mayUse = mayUse;
 module.exports.entriesOf = entriesOf;
 module.exports.usableAccounts = usableAccounts;
+/** Net money TAGGED to a goal — contributions into its account, less any tagged out. */
+function goalSaved(entries, goalId, accountId) {
+  let net = 0;
+  for (const e of entries) {
+    if (e.goalId !== goalId) continue;
+    const amt = Number((e.actual != null ? e.actual : e.expected) || 0);
+    if (e.toAccountId === accountId) net += amt;
+    else if (e.fromAccountId === accountId) net -= amt;
+  }
+  return Math.round(net);
+}
+/** Trailing monthly pace of money tagged to a goal. */
+function goalPace(entries, goalId, accountId, asOf, months = 3) {
+  const cutoff = new Date(Date.parse(asOf + 'T00:00:00Z') - months * 30.436875 * 86400000).toISOString().slice(0, 10);
+  let into = 0;
+  for (const e of entries) {
+    if (e.goalId !== goalId || !e.occurredOn || e.occurredOn < cutoff) continue;
+    if (e.toAccountId === accountId) into += Number((e.actual != null ? e.actual : e.expected) || 0);
+  }
+  return Math.round(into / months);
+}
+
 /** The book to scope to: a named one the user may use, else their default book. */
 async function resolveBook(bookId, taxpayerId) {
   if (bookId) return (await mayUse(bookId, taxpayerId)) ? bookId : null;

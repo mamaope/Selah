@@ -64,7 +64,7 @@ async function recordPricePoint(bookId, itemKey, label, unitPrice, unit, asOf, w
  * @returns { id } or { refused } (a pricing refusal to bubble up)
  */
 async function createEntryFrom(bookId, authorId, body) {
-  const { direction, label, category, accountId, fromAccountId, toAccountId, occurredOn, note, currency } = body || {};
+  const { direction, label, category, accountId, fromAccountId, toAccountId, occurredOn, note, currency, goalId } = body || {};
   // 🔑 the money is `amount` (the Record sheet's name) OR `total` (a bought line's) —
   //    accept both, so no caller can silently drop the sum by naming it the other thing.
   const amount = (body && body.amount != null && body.amount !== '') ? body.amount : (body ? body.total : undefined);
@@ -94,15 +94,16 @@ async function createEntryFrom(bookId, authorId, body) {
   const { rows } = await db.query(
     `INSERT INTO entries (book_id, author_id, occurred_on, direction, label_enc, category_id, currency,
                           expected_enc, actual_enc, status, note_enc, account_id, from_account_id, to_account_id,
-                          quantity, unit, unit_price_enc)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,'unplanned',$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+                          quantity, unit, unit_price_enc, goal_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,'unplanned',$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
     [bookId, authorId, when, direction,
      encrypt(String(label || '')), categoryId, currency === 'USD' ? 'USD' : 'UGX',
      encrypt(Number(finalTotal || 0)), note ? encrypt(note) : null,
      direction === 'transfer' ? null : accountId,
      direction === 'transfer' ? fromAccountId : null,
      direction === 'transfer' ? toAccountId : null,
-     quantity, unit, unitPrice != null ? encrypt(Number(unitPrice)) : null]);
+     quantity, unit, unitPrice != null ? encrypt(Number(unitPrice)) : null,
+     direction === 'transfer' ? (goalId || null) : null]);
   return { id: rows[0].id, total: finalTotal, unit, quantity };
 }
 
@@ -361,6 +362,9 @@ router.get('/:bookId/period', async (req, res, next) => {
       // budget is compared against what actually happened in ITS window.
       budget: R.budgetVsActual(budgets, entries, from, to),
       accounts: await booksRoute.usableAccounts(req.params.bookId, req.taxpayerId),
+      // 🔑 the Book's goals, so a transfer INTO a savings account can be earmarked
+      goals: (await db.query("SELECT id, name_enc, account_id FROM savings_goals WHERE book_id = $1 AND status = 'active' ORDER BY created_at", [req.params.bookId]))
+               .rows.map((g) => ({ id: g.id, name: str(g.name_enc), accountId: g.account_id })),
     });
   } catch (e) { next(e); }
 });

@@ -24,6 +24,7 @@
   let current = null;          // the Book we are looking at
   let cats = [];
   let accts = [];
+  let bkGoals = [];
 
   const today = () => new Date().toISOString().slice(0, 10);
 
@@ -192,6 +193,7 @@
 
     cats = c.ok ? c.categories : [];
     accts = p.accounts || [];
+    bkGoals = p.goals || [];
     allEntries = p.entries || [];
     allBudgets = p.budgets || [];
     await loadPriceBook();
@@ -935,16 +937,42 @@
 
   A.bkCloseSheet = () => { closeSheet(); };
 
+  const SAVING_TYPES = ['emergency_fund', 'savings', 'sacco', 'vsla', 'fixed_deposit', 'unit_trust', 'treasury', 'shares', 'land'];
+
+  // 🔑 A transfer INTO a savings account may be earmarked for a goal.
+  function updateGoalRow() {
+    const row = $('bk-goal-row'); if (!row) return;
+    const to = $('bk-to') ? $('bk-to').value : '';
+    const acct = accts.find((a) => a.id === to);
+    const isSav = acct && SAVING_TYPES.includes(acct.type);
+    const goalsFor = isSav ? bkGoals.filter((g) => g.accountId === to) : [];
+    if (dir === 'transfer' && goalsFor.length) {
+      $('bk-goal').innerHTML = '<option value="">— no specific goal —</option>' +
+        goalsFor.map((g) => '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>').join('');
+      row.hidden = false;
+    } else {
+      row.hidden = true; if ($('bk-goal')) $('bk-goal').value = '';
+    }
+  }
+
   A.bkDir = (el) => {
     dir = el.dataset.dir;
     document.querySelectorAll('.seg-b').forEach((b) => b.classList.toggle('active', b.dataset.dir === dir));
     // A transfer needs TWO accounts and touches ZERO totals.
     $('bk-acct-one').hidden = dir === 'transfer';
     $('bk-acct-two').hidden = dir !== 'transfer';
+    // 🔴 A TRANSFER HAS NO UNIT PRICE — it moves money, it does not buy a thing.
+    if ($('bk-units-row')) $('bk-units-row').hidden = dir === 'transfer';
+    updateGoalRow();
     // 🔑 ...and its categories change with it. Money-out categories vanish the
     //    moment you switch to money in.
     fillSheetCats();
   };
+
+  // the goal picker follows the destination account
+  document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'bk-to') updateGoalRow();
+  });
 
   // Escape closes. Enter submits. A form you cannot drive from the keyboard is a
   // form that punishes anybody entering more than one thing.
@@ -1016,6 +1044,7 @@
     if (dir === 'transfer') {
       body.fromAccountId = $('bk-from').value || null;
       body.toAccountId = $('bk-to').value || null;
+      body.goalId = ($('bk-goal') && $('bk-goal').value) || undefined;
     } else {
       body.accountId = $('bk-acct').value || null;
     }

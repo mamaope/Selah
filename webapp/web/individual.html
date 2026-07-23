@@ -530,8 +530,9 @@
       <label for="bk-label">What was it?</label>
       <input type="text" id="bk-label" placeholder="Sugar, gas, boda, rent, salary" autocomplete="off">
 
-      <!-- 🔑 units: enter the quantity and the total fills from the known price -->
-      <div class="two">
+      <!-- 🔑 units: enter the quantity and the total fills from the known price.
+           Hidden for transfers — moving money between accounts has no unit price. -->
+      <div class="two" id="bk-units-row">
         <div>
           <label for="bk-qty">Quantity</label>
           <input type="number" id="bk-qty" inputmode="decimal" placeholder="1" autocomplete="off">
@@ -569,6 +570,12 @@
           <label for="bk-to">To</label>
           <select id="bk-to"></select>
         </div>
+      </div>
+
+      <!-- 🔑 a transfer INTO a savings account may name the goal it is for -->
+      <div id="bk-goal-row" hidden>
+        <label for="bk-goal">Toward which goal?</label>
+        <select id="bk-goal"><option value="">— no specific goal —</option></select>
       </div>
 
       <p id="bk-sheet-msg" class="hint"></p>

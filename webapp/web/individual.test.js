@@ -721,7 +721,8 @@ function booksFetch(o) {
         entries,
         budget: opts.budget || { rows: [], budgetsExcluded: [], howBudgetsWereCounted: 'x' },
         budgets: opts.budgets || [],
-        accounts: [{ id: 'a1', name: 'Stanbic', scope: 'personal' }, { id: 'a2', name: 'MTN MoMo', scope: 'personal' }],
+        accounts: opts.accounts || [{ id: 'a1', name: 'Stanbic', type: 'bank', scope: 'personal' }, { id: 'a2', name: 'MTN MoMo', type: 'mobile_money', scope: 'personal' }],
+        goals: opts.periodGoals || [],
       });
     }
     if (/\/categories\/[^/]+$/.test(url) && m === 'PATCH')  { opts.renamed = JSON.parse(init.body); return json(200, { ok: true }); }
@@ -729,6 +730,7 @@ function booksFetch(o) {
     if (/\/categories$/.test(url) && m === 'POST')            { opts.added = JSON.parse(init.body); return json(200, { ok: true, id: 'c9', key: 'school_run' }); }
     if (/\/confirm$/.test(url)) { opts.confirmed = JSON.parse(init.body); return json(opts.confirmStatus || 200, opts.confirmResponse || { ok: true }); }
     if (/did-not-arrive$/.test(url)) { opts.missed = true; return json(200, { ok: true, kept: true }); }
+    if (/\/entries$/.test(url) && m === 'POST') { opts.entryPosted = JSON.parse(init.body); return json(200, { ok: true, id: 'e1' }); }
     if (/\/budgets\/[^/]+$/.test(url) && m === 'DELETE') { opts.budgetDeleted = url; return json(200, { ok: true }); }
     if (/\/values$/.test(url) && m === 'GET') return json(200, { ok: true, items: opts.trackedItems || [] });
     if (/\/values$/.test(url) && m === 'POST') { opts.recorded = JSON.parse(init.body); return json(200, { ok: true, id: 'v1', itemKey: opts.recorded.itemKey }); }
@@ -1929,6 +1931,47 @@ section('📈 DEFAULT VALUES — history + adjust the price in place');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+section('🔁 TRANSFER — two accounts, no units, and a goal when it lands in savings');
+{
+  const o = {
+    accounts: [
+      { id: 'a1', name: 'MTN MoMo',   type: 'mobile_money', scope: 'book' },
+      { id: 'a3', name: 'Unity SACCO', type: 'sacco',        scope: 'book' },
+    ],
+    periodGoals: [{ id: 'g1', name: 'Laptop', accountId: 'a3' }],
+  };
+  const { w, D } = boot(booksFetch(o));
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  w.SelahActions.bkOpenSheet(); await settle();
+
+  // switch to transfer
+  w.SelahActions.bkDir({ dataset: { dir: 'transfer' } }); await settle();
+  ok('🔴 a transfer hides the unit/quantity fields — moving money buys no thing', D.getElementById('bk-units-row').hidden === true);
+  ok('🔑 a transfer shows two accounts (from / to)', D.getElementById('bk-acct-two').hidden === false);
+
+  // choose a SACCO (savings) as the destination → the goal picker appears
+  D.getElementById('bk-to').value = 'a3';
+  D.getElementById('bk-to').dispatchEvent(new w.Event('change', { bubbles: true })); await settle();
+  ok('🔑 a transfer INTO a savings account offers a goal to earmark', D.getElementById('bk-goal-row').hidden === false);
+  ok('...populated with the goals backed by that account', !!D.querySelector('#bk-goal option[value="g1"]'));
+
+  // record the transfer toward the goal
+  D.getElementById('bk-from').value = 'a1';
+  D.getElementById('bk-amount').value = '500000';
+  D.getElementById('bk-goal').value = 'g1';
+  await w.SelahActions.bkAddEntry(); await settle();
+  const e = o.entryPosted;
+  ok('🔑 the transfer POSTs from + to accounts and the goal', e && e.direction === 'transfer' && e.fromAccountId === 'a1' && e.toAccountId === 'a3' && e.goalId === 'g1');
+  ok('🔴 ...and carries no unit', !e.unit);
+
+  // a transfer to a NON-savings account shows no goal picker
+  D.getElementById('bk-to').value = 'a1';
+  D.getElementById('bk-to').dispatchEvent(new w.Event('change', { bubbles: true })); await settle();
+  ok('🔴 a transfer to a non-savings account has no goal picker', D.getElementById('bk-goal-row').hidden === true);
+}
+
 section('🧮 UNIT PRICING — quantity in, total out; and the price book updates');
 {
   const P = require('../engine/pricing');
