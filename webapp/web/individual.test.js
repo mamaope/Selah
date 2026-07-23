@@ -743,7 +743,7 @@ function booksFetch(o) {
     if (/\/shopping\/[^/]+$/.test(url) && m === 'PATCH') { opts.listRenamed = JSON.parse(init.body); return json(200, { ok: true }); }
     if (/\/forecast$/.test(url)) return json(200, opts.forecast || { ok: true, comingUp: { items: [] }, suggestedBudget: { lines: [], lumpy: [] } });
     if (/\/health$/.test(url))   return json(200, opts.health || { ok: true, balances: [], netWorth: {}, emergencyFund: {}, savingsRate: {} });
-    if (/\/savings$/.test(url))  return json(200, opts.savings || { ok: true, totalSaved: 0 });
+    if (/\/savings(\?|$)/.test(url))  return json(200, opts.savings || { ok: true, totalSaved: 0 });
     if (/accounts\/mine$/.test(url)) return json(200, opts.mine || { ok: true, accounts: [], types: { cash: { label: 'Cash' } } });
     if (/\/savings\/goals$/.test(url) && m === 'POST') { opts.goalAdded = JSON.parse(init.body); return json(200, { ok: true, id: 'g1' }); }
     if (/\/savings\/goals\/[^/]+$/.test(url) && m === 'DELETE') { opts.goalDeleted = url; return json(200, { ok: true }); }
@@ -937,7 +937,7 @@ section('🧭 FINDING YOUR WAY — the app was unnavigable, and that is a bug');
   const nav = D.getElementById('appnav');
   ok('a signed-in person always has a nav bar on screen', disp(w, nav) !== 'none');
   ok('...with the places they can actually go',
-     [...nav.querySelectorAll('[data-nav]')].map((b) => b.dataset.nav).join(',') === 'home,books,accounts,savings,calendar,data');
+     [...nav.querySelectorAll('[data-nav]')].map((b) => b.dataset.nav).join(',') === 'home,books,accounts,calendar,data');
 
   const lit = () => [...nav.querySelectorAll('.active')].map((b) => b.dataset.nav).join(',');
   ok('🔑 it says WHERE YOU ARE — home is lit on the home screen', lit() === 'home');
@@ -1007,11 +1007,11 @@ section('🧭 FINDING YOUR WAY — the app was unnavigable, and that is a bug');
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
 
   const tabs = [...D.querySelectorAll('.tabs .tab')];
-  ok('a Book has five tabs', tabs.length === 5);
+  ok('a Book has six tabs', tabs.length === 6);
   // 🔑 THE ORDER IS THE STORY: what happened, then what judges it, then what I
   //    expect every month, then what is coming, then what I mean to buy.
-  ok('...in the order: This month · Budget · My defaults · What\'s coming · Shopping',
-     tabs.map((t) => t.dataset.tab).join(',') === 'month,budget,plan,ahead,shopping');
+  ok('...in the order: This month · Budget · My defaults · What\'s coming · Shopping · Savings',
+     tabs.map((t) => t.dataset.tab).join(',') === 'month,budget,plan,ahead,shopping,savings');
   ok('...and "This month" is the one you land on', tabs[0].classList.contains('active'));
 
   // 🔑 THE DEFAULTS ARE ONE TABLE — the plan and the price book unified.
@@ -2133,9 +2133,11 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
     note: null };
   const { w, D } = boot(booksFetch({ savings }));
   await settle();
-  await w.SelahActions.goSavings(); await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  await w.SelahActions.bkTab({ dataset: { tab: 'savings' } }); await settle();
 
-  const v = D.getElementById('out-savings').textContent;
+  const v = D.getElementById('bk-savings').textContent;
   ok('🔑 the emergency fund is the headline, with its balance', /Emergency fund/.test(v) && /4,000,000/.test(v));
   ok('🔑 it says how many months the fund covers', /Covers/.test(v) && /2 months/.test(v));
   ok('🔑 the resilience ladder shows where you are', /One month/.test(v) && /you are here/.test(v));
@@ -2154,29 +2156,6 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
   ok('🔴 it says plainly this is information, not advice', /not.*licensed financial adviser/i.test(v) && /not a recommendation|not a solicitation/i.test(v));
 }
 
-// 🔑 SAVINGS IS PER-BOOK — a book picker appears when there is more than one Book
-{
-  const savings = { ok: true, book: 'b1',
-    emergencyFund: 4_000_000, hasEmergencyFund: true,
-    emergencyAccounts: [{ name: 'Cushion', type: 'emergency_fund', amount: 4_000_000, liquid: true }],
-    otherLiquid: [], otherLiquidTotal: 0, longTerm: 0, longTermAccounts: [],
-    totalSaved: 4_000_000, monthlyOutgoings: 2_000_000, knowMonthly: true, runwayMonths: 2,
-    resilience: { level: 1, maxLevel: 4, key: 'one', label: 'One month', blurb: 'x', months: 2,
-      next: { key: 'three', label: 'Three months', atMonths: 3, needMore: 2_000_000 },
-      ladder: [{ key: 'one', label: 'One month', atMonths: 1, reached: true, current: true }] },
-    note: null };
-  const o = { savings, books: [
-    { id: 'b1', name: 'Home', isDefault: true, kind: 'personal', currency: 'UGX' },
-    { id: 'b2', name: 'The Shop', isDefault: false, kind: 'personal', currency: 'UGX' },
-  ] };
-  const { w, D } = boot(booksFetch(o));
-  await settle();
-  await w.SelahActions.goSavings(); await settle();
-  ok('🔑 with two Books, a Book picker is shown on the Savings view', !!D.getElementById('sv-book'));
-  ok('...defaulted to the scoped Book (Home)', D.getElementById('sv-book').value === 'b1');
-  ok('...and lists the other Book to switch to', /The Shop/.test(D.getElementById('sv-book').innerHTML));
-}
-
 // 🔑 savings but NO emergency-fund account → nudge to open one, other savings still shown
 {
   const savings = { ok: true,
@@ -2187,10 +2166,12 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
     note: 'Your emergency fund lives in its own account. Add an “Emergency fund” account and move money into it — three to six months of expenses, kept for emergencies only.' };
   const { w, D } = boot(booksFetch({ savings }));
   await settle();
-  await w.SelahActions.goSavings(); await settle();
-  const v = D.getElementById('out-savings').textContent;
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  await w.SelahActions.bkTab({ dataset: { tab: 'savings' } }); await settle();
+  const v = D.getElementById('bk-savings').textContent;
   ok('🔑 with no emergency-fund account, it says the fund lives in its own account', /No emergency fund yet/.test(v) && /its own account/.test(v));
-  ok('...and offers to add one', !!D.querySelector('#out-savings [data-action="goAccounts"]'));
+  ok('...and offers to add one', !!D.querySelector('#bk-savings [data-action="goAccounts"]'));
   ok('...while still showing the other savings you do have', /Unity SACCO/.test(v));
 }
 
@@ -2210,12 +2191,14 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
         projectedFinish: '2027-03-01', says: 'x', overdue: false },
     ],
     note: null };
-  const o = { savings, mine: { ok: true, accounts: [{ id: 'a9', name: 'Absa Savings', type: 'savings' }], types: {} } };
+  const o = { savings, mine: { ok: true, accounts: [{ id: 'a9', name: 'Absa Savings', type: 'savings', bookId: 'b1' }], types: {} } };
   const { w, D } = boot(booksFetch(o));
   await settle();
-  await w.SelahActions.goSavings(); await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  await w.SelahActions.bkTab({ dataset: { tab: 'savings' } }); await settle();
 
-  const v = D.getElementById('out-savings').textContent;
+  const v = D.getElementById('bk-savings').textContent;
   ok('🎯 a goal shows its name, progress and required monthly', /Laptop/.test(v) && /300,000 of 1,200,000/.test(v) && /180,000/.test(v));
   ok('🔴 the projection is labelled a projection, not a promise', /a projection, not a promise/.test(v));
   ok('the backing-account picker is filled with savings accounts', !!D.querySelector('#goal-acct option[value="a9"]'));
@@ -2234,9 +2217,11 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
 {
   const { w, D } = boot(booksFetch({ savings: { ok: true, totalSaved: 0, hasEmergencyFund: false } }));
   await settle();
-  await w.SelahActions.goSavings(); await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  await w.SelahActions.bkTab({ dataset: { tab: 'savings' } }); await settle();
   ok('🔑 with nothing saved, it nudges you to set up an account',
-     /No savings in this Book yet/.test(D.getElementById('out-savings').textContent));
+     /No savings in this Book yet/.test(D.getElementById('bk-savings').textContent));
 }
 
 // 🔴 emergency fund exists but no month cost → shows the fund, runway not invented
@@ -2247,8 +2232,10 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
     note: 'Confirm a month of spending in your Books, and Selah can tell you how many months your emergency fund covers.' };
   const { w, D } = boot(booksFetch({ savings }));
   await settle();
-  await w.SelahActions.goSavings(); await settle();
-  const v = D.getElementById('out-savings').textContent;
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  await w.SelahActions.bkTab({ dataset: { tab: 'savings' } }); await settle();
+  const v = D.getElementById('bk-savings').textContent;
   ok('🔴 with no month cost, the runway is not invented — it says why', /Confirm a month of spending/.test(v));
   ok('...but the fund you hold is still shown', /1,000,000/.test(v));
 }

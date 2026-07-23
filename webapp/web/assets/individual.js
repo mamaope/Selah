@@ -20,12 +20,12 @@
   const esc = (s) => String(s == null ? '' : s)
     .replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  const VIEWS = ['refused', 'signin', 'home', 'payslips', 'wht', 'money', 'data', 'calendar', 'books', 'book', 'accounts', 'savings'];
-  const SIGNED_IN = ['home', 'payslips', 'wht', 'money', 'data', 'calendar', 'books', 'book', 'accounts', 'savings'];
+  const VIEWS = ['refused', 'signin', 'home', 'payslips', 'wht', 'money', 'data', 'calendar', 'books', 'book', 'accounts'];
+  const SIGNED_IN = ['home', 'payslips', 'wht', 'money', 'data', 'calendar', 'books', 'book', 'accounts'];
 
   // Which nav item lights up for which view. A sub-screen keeps its parent lit —
   // being three levels deep inside Books should still say BOOKS.
-  const NAV_OF = { home: 'home', books: 'books', book: 'books', accounts: 'accounts', savings: 'savings',
+  const NAV_OF = { home: 'home', books: 'books', book: 'books', accounts: 'accounts',
                    calendar: 'calendar', data: 'data', payslips: 'home', wht: 'home', money: 'home' };
 
   function show(name) {
@@ -637,30 +637,20 @@
   A.goPayslips = renderPayslips;
   A.goWht = renderWht;
   A.goMoney = renderMoney;
-  A.goSavings = renderSavings;
+  // 🌱 SAVINGS — a TAB INSIDE the Book (next to Shopping). Per-book: this Book's
+  //    accounts, this Book's expenses, this Book's runway. books.js calls
+  //    window.SelahRenderSavings(bookId) when the Savings tab opens.
+  let savingsBook = null;
 
-  // 🌱 SAVINGS — per BOOK: its accounts, its expenses, its runway.
-  let savingsBook = null;                 // the chosen book (null = the default book)
-  let savingsBooks = [];                  // the list, for the picker
-
-  async function renderSavings() {
-    show('savings');
-    const [bl, r] = await Promise.all([API.books(), API.savings(savingsBook)]);
+  async function renderSavingsInto(containerId, bookId) {
+    savingsBook = bookId || null;
+    const r = await API.savings(savingsBook);
     if (!handle(r)) return;
-    savingsBooks = (bl && bl.ok && bl.books) || [];
-    savingsBook = r.book || savingsBook;   // lock to what the server scoped to
-    const out = $('out-savings');
-
-    // book picker — only worth showing when there is more than one Book
-    const picker = savingsBooks.length > 1
-      ? `<div class="row" style="gap:.5rem;align-items:center;margin-bottom:.6rem">
-           <label for="sv-book" class="src">Book</label>
-           <select id="sv-book">${savingsBooks.map((b) => `<option value="${esc(b.id)}"${b.id === savingsBook ? ' selected' : ''}>${esc(b.name)}</option>`).join('')}</select>
-         </div>`
-      : '';
+    const out = $(containerId); if (!out) return;
+    savingsBook = r.book || savingsBook;
 
     if (!r.totalSaved && !r.hasEmergencyFund && !(r.goals && r.goals.length)) {
-      out.innerHTML = picker + `<div class="result"><p class="cap">No savings in this Book yet</p>
+      out.innerHTML = `<div class="result"><p class="cap">No savings in this Book yet</p>
         <p class="because">Savings live in the Book they belong to. Add an <strong>Emergency fund</strong> account to this Book and move money into it — three to six months of this Book's expenses, kept for emergencies only. A SACCO, a fixed deposit or a unit trust go in their own accounts too.</p>
         <button class="cta" data-action="goAccounts">Set up an account →</button></div>`;
       return;
@@ -719,9 +709,10 @@
     // ── WHERE YOUR MONEY COULD WORK — the ladder + after-tax options ──
     const investCard = renderInvest(r.invest);
 
-    out.innerHTML = picker + `<div class="out">${gameCard}${efCard}${otherCard}${total}${goalCard}${investCard}</div>`;
+    out.innerHTML = `<div class="out">${efCard}${goalCard}${otherCard}${total}${gameCard}${investCard}</div>`;
     fillGoalAccounts();
   }
+  window.SelahRenderSavings = (bookId) => renderSavingsInto('bk-savings', bookId);
 
   function renderInvest(inv) {
     if (!inv || !inv.ladder) return '';
@@ -818,10 +809,6 @@
     sel.innerHTML = '<option value="">— optional —</option>' + opts;
   }
 
-  // switching the Book re-scopes the whole savings view
-  document.addEventListener('change', (e) => {
-    if (e.target && e.target.id === 'sv-book') { savingsBook = e.target.value; renderSavings(); }
-  });
 
   A.goalAdd = async () => {
     const name = $('goal-name').value.trim();
@@ -831,13 +818,13 @@
     const r = await API.addGoal({ name, target, targetDate: $('goal-date').value || null, accountId: $('goal-acct').value || null, book: savingsBook || undefined });
     if (!handle(r)) return;
     if (!r.ok) { $('goal-msg').textContent = r.headline || 'That did not work.'; return; }
-    renderSavings();
+    renderSavingsInto('bk-savings', savingsBook);
   };
 
   A.goalDel = async (el) => {
     const r = await API.delGoal(el.dataset.id);
     if (!handle(r)) return;
-    renderSavings();
+    renderSavingsInto('bk-savings', savingsBook);
   };
 
   A.goData = renderData;
