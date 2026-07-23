@@ -1937,6 +1937,7 @@ section('🔁 TRANSFER — two accounts, no units, and a goal when it lands in s
     accounts: [
       { id: 'a1', name: 'MTN MoMo',   type: 'mobile_money', scope: 'book' },
       { id: 'a3', name: 'Unity SACCO', type: 'sacco',        scope: 'book' },
+      { id: 'a4', name: 'Absa Savings', type: 'savings',     scope: 'book' },
     ],
     periodGoals: [{ id: 'g1', name: 'Laptop', accountId: 'a3' }],
   };
@@ -1950,6 +1951,8 @@ section('🔁 TRANSFER — two accounts, no units, and a goal when it lands in s
   w.SelahActions.bkDir({ dataset: { dir: 'transfer' } }); await settle();
   ok('🔴 a transfer hides the unit/quantity fields — moving money buys no thing', D.getElementById('bk-units-row').hidden === true);
   ok('🔑 a transfer shows two accounts (from / to)', D.getElementById('bk-acct-two').hidden === false);
+  ok('🔴 a transfer hides the Category field — it is neither income nor spending', D.getElementById('bk-cat-field').hidden === true);
+  ok('🔑 the question is reworded for a transfer', D.querySelector('label[for="bk-label"]').textContent === 'Reason for transfer');
 
   // choose a SACCO (savings) as the destination → the goal picker appears
   D.getElementById('bk-to').value = 'a3';
@@ -1970,6 +1973,12 @@ section('🔁 TRANSFER — two accounts, no units, and a goal when it lands in s
   D.getElementById('bk-to').value = 'a1';
   D.getElementById('bk-to').dispatchEvent(new w.Event('change', { bubbles: true })); await settle();
   ok('🔴 a transfer to a non-savings account has no goal picker', D.getElementById('bk-goal-row').hidden === true);
+
+  // a savings account with NO linked goals still shows the picker (so you know you could earmark)
+  D.getElementById('bk-to').value = 'a4';
+  D.getElementById('bk-to').dispatchEvent(new w.Event('change', { bubbles: true })); await settle();
+  ok('🔑 a savings account with no goals still shows the picker, with an honest empty state',
+     D.getElementById('bk-goal-row').hidden === false && /no goal linked to this account/.test(D.getElementById('bk-goal').textContent));
 }
 
 section('🧮 UNIT PRICING — quantity in, total out; and the price book updates');

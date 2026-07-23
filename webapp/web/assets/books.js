@@ -941,18 +941,18 @@
 
   // 🔑 A transfer INTO a savings account may be earmarked for a goal.
   function updateGoalRow() {
-    const row = $('bk-goal-row'); if (!row) return;
+    const row = $('bk-goal-row'), sel = $('bk-goal'); if (!row || !sel) return;
     const to = $('bk-to') ? $('bk-to').value : '';
     const acct = accts.find((a) => a.id === to);
     const isSav = acct && SAVING_TYPES.includes(acct.type);
-    const goalsFor = isSav ? bkGoals.filter((g) => g.accountId === to) : [];
-    if (dir === 'transfer' && goalsFor.length) {
-      $('bk-goal').innerHTML = '<option value="">— no specific goal —</option>' +
-        goalsFor.map((g) => '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>').join('');
-      row.hidden = false;
-    } else {
-      row.hidden = true; if ($('bk-goal')) $('bk-goal').value = '';
-    }
+    // 🔑 show whenever a transfer lands in a savings account — even with no goals yet,
+    //    so the person can see they could earmark one.
+    if (dir !== 'transfer' || !isSav) { row.hidden = true; sel.value = ''; return; }
+    const goalsFor = bkGoals.filter((g) => g.accountId === to);
+    sel.innerHTML = goalsFor.length
+      ? '<option value="">— no specific goal —</option>' + goalsFor.map((g) => '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>').join('')
+      : '<option value="">— no goal linked to this account yet —</option>';
+    row.hidden = false;
   }
 
   A.bkDir = (el) => {
@@ -963,6 +963,12 @@
     $('bk-acct-two').hidden = dir !== 'transfer';
     // 🔴 A TRANSFER HAS NO UNIT PRICE — it moves money, it does not buy a thing.
     if ($('bk-units-row')) $('bk-units-row').hidden = dir === 'transfer';
+    // 🔴 ...and no CATEGORY — a transfer is neither income nor spending.
+    if ($('bk-cat-field')) $('bk-cat-field').hidden = dir === 'transfer';
+    // 🔑 the question itself changes: a transfer has a reason, not a "what".
+    const lbl = document.querySelector('label[for="bk-label"]');
+    if (lbl) lbl.textContent = dir === 'transfer' ? 'Reason for transfer' : 'What was it?';
+    if ($('bk-label')) $('bk-label').placeholder = dir === 'transfer' ? 'Moving to savings, loan repayment…' : 'Sugar, gas, boda, rent, salary';
     updateGoalRow();
     // 🔑 ...and its categories change with it. Money-out categories vanish the
     //    moment you switch to money in.
@@ -1038,7 +1044,7 @@
       amount: rawAmount === '' ? undefined : Number(rawAmount),
       quantity: qty === '' ? undefined : Number(qty),
       unit: unit || undefined,
-      category: $('bk-cat').value || null,
+      category: dir === 'transfer' ? null : ($('bk-cat').value || null),
       occurredOn: $('bk-date').value || today(),
     };
     if (dir === 'transfer') {
