@@ -1056,7 +1056,7 @@
   // worse than no button: the person concludes the app is broken, and they are
   // not wrong.
   // ═══════════════════════════════════════════════════════════════════════════
-  const PANES = ['month', 'budget', 'plan', 'ahead', 'shopping', 'savings'];
+  const PANES = ['month', 'budget', 'plan', 'ahead', 'shopping', 'savings', 'invest'];
 
   A.bkTab = (el) => {
     const want = el.dataset.tab;
@@ -1067,6 +1067,7 @@
     if (want === 'plan') renderDefaults();
     if (want === 'shopping') renderShopping();
     if (want === 'savings' && window.SelahRenderSavings) window.SelahRenderSavings(current.id);
+    if (want === 'invest' && window.SelahRenderInvest) window.SelahRenderInvest(current.id);
   };
 
   // ── MY DEFAULTS — the template. "Set it once." ─────────────────────────────

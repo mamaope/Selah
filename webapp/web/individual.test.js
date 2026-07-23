@@ -1007,11 +1007,11 @@ section('🧭 FINDING YOUR WAY — the app was unnavigable, and that is a bug');
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
 
   const tabs = [...D.querySelectorAll('.tabs .tab')];
-  ok('a Book has six tabs', tabs.length === 6);
+  ok('a Book has seven tabs', tabs.length === 7);
   // 🔑 THE ORDER IS THE STORY: what happened, then what judges it, then what I
   //    expect every month, then what is coming, then what I mean to buy.
-  ok('...in the order: This month · Budget · My defaults · What\'s coming · Shopping · Savings',
-     tabs.map((t) => t.dataset.tab).join(',') === 'month,budget,plan,ahead,shopping,savings');
+  ok('...in the order: This month · Budget · My defaults · What\'s coming · Shopping · Savings · Invest',
+     tabs.map((t) => t.dataset.tab).join(',') === 'month,budget,plan,ahead,shopping,savings,invest');
   ok('...and "This month" is the one you land on', tabs[0].classList.contains('active'));
 
   // 🔑 THE DEFAULTS ARE ONE TABLE — the plan and the price book unified.
@@ -2137,23 +2137,35 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
   await w.SelahActions.bkTab({ dataset: { tab: 'savings' } }); await settle();
 
-  const v = D.getElementById('bk-savings').textContent;
-  ok('🔑 the emergency fund is the headline, with its balance', /Emergency fund/.test(v) && /4,000,000/.test(v));
-  ok('🔑 it says how many months the fund covers', /Covers/.test(v) && /2 months/.test(v));
-  ok('🔑 the resilience ladder shows where you are', /One month/.test(v) && /you are here/.test(v));
-  ok('🔑 the next rung says how much MORE to move INTO the emergency fund', /Three months/.test(v) && /2,000,000 UGX more into your emergency fund/.test(v));
-  ok('🔑 other savings are shown, but plainly OFF the runway', /Other savings/.test(v) && /Unity SACCO/.test(v) && /Fixed depo/.test(v));
-  ok('...and total across all savings accounts is shown', /12,000,000/.test(v));
+  const sv = () => D.getElementById('bk-savings').textContent;
 
-  // 🎮 gamification — streak + badges
-  ok('🎮 the saving streak is shown', /saving streak/i.test(v) && /3/.test(v) && /months in a row/.test(v));
-  ok('🏅 earned badges are shown, with the next one to chase', /Three months running/.test(v) && /Next up/.test(v) && /1,000,000 saved/.test(v));
+  // 🔑 SUMMARY strip — the snapshot, always on top
+  ok('🔑 the summary shows total saved, emergency fund, runway, goals and streak',
+     /Total saved/.test(sv()) && /12,000,000/.test(sv()) && /Emergency fund/.test(sv()) && /Runway/.test(sv()) && /Goals/.test(sv()) && /Streak/.test(sv()));
 
-  // 💡 the investment ladder — named providers, after-tax math, not-advice framing
-  ok('💡 the ladder shows where you are and names real Ugandan options', /Where your money could work/.test(v) && /Treasury bill/.test(v) && /UAP Old Mutual/.test(v));
-  ok('🔑 the AFTER-TAX return is shown (12% → 9.6% net)', /9.6%/.test(v) && /After tax/.test(v));
-  ok('🔑 vehicles that FIT the current rung are flagged', /fits you now/.test(v));
-  ok('🔴 it says plainly this is information, not advice', /not.*licensed financial adviser/i.test(v) && /not a recommendation|not a solicitation/i.test(v));
+  // 🔑 default sub-tab is the Emergency fund — its balance, months covered, ladder
+  ok('🔑 the Emergency fund section shows the balance and months covered', /4,000,000/.test(sv()) && /Covers/.test(sv()) && /2 months/.test(sv()));
+  ok('🔑 the resilience ladder shows where you are', /you are here/.test(sv()) && /2,000,000 UGX more into your emergency fund/.test(sv()));
+
+  // 🔑 the Accounts sub-tab lists the accounts you save in
+  w.SelahActions.svView({ dataset: { view: 'accounts' } }); await settle();
+  ok('🔑 the Accounts sub-tab shows the accounts you save in, and the total',
+     /The accounts you save in/.test(sv()) && /Unity SACCO/.test(sv()) && /Fixed depo/.test(sv()) && /12,000,000/.test(sv()));
+
+  // 🎮 the Streak & badges sub-tab
+  w.SelahActions.svView({ dataset: { view: 'momentum' } }); await settle();
+  ok('🎮 the Streak sub-tab shows the streak and earned badges',
+     /saving streak/i.test(sv()) && /months in a row/.test(sv()) && /Three months running/.test(sv()) && /Next up/.test(sv()));
+
+  // 💡 INVEST is its OWN tab now, not part of Savings
+  ok('🔴 the investment ladder is NOT on the Savings tab', !/Where your money could work/.test(sv()));
+  await w.SelahActions.bkTab({ dataset: { tab: 'invest' } }); await settle();
+  const iv = D.getElementById('bk-invest').textContent;
+  ok('💡 the Invest tab names real Ugandan options with the after-tax return',
+     /Where your money could work/.test(iv) && /Treasury bill/.test(iv) && /UAP Old Mutual/.test(iv) && /9.6%/.test(iv) && /After tax/.test(iv));
+  ok('🔑 vehicles that FIT the current rung are flagged', /fits you now/.test(iv));
+  ok('🔴 the Invest tab says plainly this is information, not advice',
+     /not.*licensed financial adviser/i.test(iv) && /not a recommendation|not a solicitation/i.test(iv));
 }
 
 // 🔑 savings but NO emergency-fund account → nudge to open one, other savings still shown
@@ -2169,10 +2181,11 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
   await w.SelahActions.goBooks(); await settle();
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
   await w.SelahActions.bkTab({ dataset: { tab: 'savings' } }); await settle();
-  const v = D.getElementById('bk-savings').textContent;
-  ok('🔑 with no emergency-fund account, it says the fund lives in its own account', /No emergency fund yet/.test(v) && /its own account/.test(v));
+  const v = () => D.getElementById('bk-savings').textContent;
+  ok('🔑 with no emergency-fund account, it says the fund lives in its own account', /No emergency fund yet/.test(v()) && /its own account/.test(v()));
   ok('...and offers to add one', !!D.querySelector('#bk-savings [data-action="goAccounts"]'));
-  ok('...while still showing the other savings you do have', /Unity SACCO/.test(v));
+  w.SelahActions.svView({ dataset: { view: 'accounts' } }); await settle();
+  ok('...while still showing the other savings you do have', /Unity SACCO/.test(v()));
 }
 
 // 🎯 GOALS — a target, a date, the monthly, and a projection
@@ -2197,6 +2210,7 @@ section('🌱 SAVINGS — the emergency fund is its own account, and the runway 
   await w.SelahActions.goBooks(); await settle();
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
   await w.SelahActions.bkTab({ dataset: { tab: 'savings' } }); await settle();
+  w.SelahActions.svView({ dataset: { view: 'goals' } }); await settle();
 
   const v = D.getElementById('bk-savings').textContent;
   ok('🎯 a goal shows its name, progress and required monthly', /Laptop/.test(v) && /300,000 of 1,200,000/.test(v) && /180,000/.test(v));

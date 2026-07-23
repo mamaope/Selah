@@ -642,12 +642,70 @@
   //    window.SelahRenderSavings(bookId) when the Savings tab opens.
   let savingsBook = null;
 
+let savingsData = null;                 // last /savings response, cached for sub-tabs
+  let savingsView = 'fund';               // which sub-section is open
+
+  const ladderHtml = (res) => `<div style="display:flex;flex-direction:column;gap:.35rem;margin:.6rem 0">
+      ${res.ladder.slice().reverse().map((rung) => `
+        <div style="display:flex;align-items:center;gap:.6rem;opacity:${rung.reached ? '1' : '.45'}">
+          <span style="width:1.1rem;height:1.1rem;border-radius:50%;flex:0 0 auto;background:${rung.reached ? 'var(--emerald-600)' : 'var(--border-str)'};box-shadow:${rung.current ? '0 0 0 3px var(--emerald-100, rgba(16,185,129,.25))' : 'none'}"></span>
+          <span style="font-weight:${rung.current ? '700' : '400'}">${esc(rung.label)}</span>
+          ${rung.current ? '<span class="pill ok">you are here</span>' : ''}
+        </div>`).join('')}
+    </div>
+    ${res.next
+      ? `<p class="because">Next rung: <strong>${esc(res.next.label)}</strong> — ${res.next.needMore != null ? ugx(res.next.needMore) + ' UGX more into your emergency fund.' : 'keep funding it.'}</p>`
+      : `<p class="because">Top of the ladder. Money past this point is money that can be put to work.</p>`}`;
+
+  const efCardHtml = (r) => r.hasEmergencyFund
+    ? `<div class="result">
+         <p class="cap">Emergency fund</p>
+         <div class="big"><span class="v">${ugx(r.emergencyFund)}</span><span class="u">UGX</span></div>
+         ${r.knowMonthly
+           ? `<p class="because">Covers <strong>${r.runwayMonths}</strong> month${r.runwayMonths === 1 ? '' : 's'} of expenses.${r.resilience ? ' ' + esc(r.resilience.blurb) : ''}</p>${r.resilience ? ladderHtml(r.resilience) : ''}`
+           : `<p class="because">${esc(r.note || '')}</p>`}
+       </div>`
+    : `<div class="result ask">
+         <p class="cap">No emergency fund yet</p>
+         <p class="because">${esc(r.note || '')}</p>
+         <button class="cta" data-action="goAccounts">Add an Emergency fund account →</button>
+       </div>`;
+
+  const accountsHtml = (r) => {
+    const rows = (list) => list.map((a) =>
+      `<tr><td style="padding-left:1.2rem" class="src">${esc(a.name)}</td><td class="num">${ugx(a.amount)}</td></tr>`).join('');
+    return `<div class="result">
+        <p class="cap">The accounts you save in</p>
+        <div class="tablewrap"><table class="t"><tbody>
+          ${r.emergencyAccounts && r.emergencyAccounts.length ? `<tr><td><strong>Emergency fund</strong></td><td class="num"><strong>${ugx(r.emergencyFund)}</strong></td></tr>${rows(r.emergencyAccounts)}` : ''}
+          ${r.otherLiquid && r.otherLiquid.length ? `<tr><td><strong>Liquid savings</strong></td><td class="num"><strong>${ugx(r.otherLiquidTotal)}</strong></td></tr>${rows(r.otherLiquid)}` : ''}
+          ${r.longTermAccounts && r.longTermAccounts.length ? `<tr><td><strong>Longer-term / investments</strong></td><td class="num"><strong>${ugx(r.longTerm)}</strong></td></tr>${rows(r.longTermAccounts)}` : ''}
+          <tr class="tot"><td><strong>Total saved</strong></td><td class="num"><strong>${ugx(r.totalSaved)}</strong></td></tr>
+        </tbody></table></div>
+        <p class="src">The runway is measured only against the emergency-fund account, so a locked fixed deposit or a SACCO never inflates it.</p>
+      </div>`;
+  };
+
+  function paintSavingsSection() {
+    const el = $('sv-section'); if (!el || !savingsData) return;
+    const r = savingsData;
+    if (savingsView === 'goals')       el.innerHTML = renderGoals(r.goals || []);
+    else if (savingsView === 'accounts') el.innerHTML = accountsHtml(r);
+    else if (savingsView === 'momentum') el.innerHTML = renderGamify(r.gamification);
+    else                                 el.innerHTML = efCardHtml(r);   // 'fund'
+    if (savingsView === 'goals') fillGoalAccounts();
+    document.querySelectorAll('#bk-savings .sv-tab').forEach((b) => b.classList.toggle('active', b.dataset.view === savingsView));
+  }
+
+  A.svView = (el) => { savingsView = el.dataset.view; paintSavingsSection(); };
+
   async function renderSavingsInto(containerId, bookId) {
     savingsBook = bookId || null;
     const r = await API.savings(savingsBook);
     if (!handle(r)) return;
     const out = $(containerId); if (!out) return;
     savingsBook = r.book || savingsBook;
+    savingsData = r;
 
     if (!r.totalSaved && !r.hasEmergencyFund && !(r.goals && r.goals.length)) {
       out.innerHTML = `<div class="result"><p class="cap">No savings in this Book yet</p>
@@ -656,63 +714,44 @@
       return;
     }
 
-    const ladder = (res) => `<div style="display:flex;flex-direction:column;gap:.35rem;margin:.6rem 0">
-        ${res.ladder.slice().reverse().map((rung) => `
-          <div style="display:flex;align-items:center;gap:.6rem;opacity:${rung.reached ? '1' : '.45'}">
-            <span style="width:1.1rem;height:1.1rem;border-radius:50%;flex:0 0 auto;background:${rung.reached ? 'var(--emerald-600)' : 'var(--border-str)'};box-shadow:${rung.current ? '0 0 0 3px var(--emerald-100, rgba(16,185,129,.25))' : 'none'}"></span>
-            <span style="font-weight:${rung.current ? '700' : '400'}">${esc(rung.label)}</span>
-            ${rung.current ? '<span class="pill ok">you are here</span>' : ''}
-          </div>`).join('')}
-      </div>
-      ${res.next
-        ? `<p class="because">Next rung: <strong>${esc(res.next.label)}</strong> — ${res.next.needMore != null ? ugx(res.next.needMore) + ' UGX more into your emergency fund.' : 'keep funding it.'}</p>`
-        : `<p class="because">Top of the ladder. Money past this point is money that can be put to work.</p>`}`;
+    // ── SUMMARY — the snapshot, always on top ──
+    const goals = r.goals || [];
+    const gReached = goals.filter((g) => g.reached).length;
+    const gBehind = goals.filter((g) => g.onTrack === false).length;
+    const goalsLine = goals.length
+      ? `${goals.length} goal${goals.length === 1 ? '' : 's'}` + (gReached ? `, ${gReached} reached` : '') + (gBehind ? `, ${gBehind} behind` : '')
+      : 'none yet';
+    const streak = (r.gamification && r.gamification.streak) || { current: 0 };
+    const stat = (k, v) => `<div style="flex:1;min-width:6.5rem"><div class="src">${esc(k)}</div><div style="font-size:1.25rem;font-weight:700">${v}</div></div>`;
+    const summary = `<div class="result">
+        <div class="row" style="gap:1rem;flex-wrap:wrap">
+          ${stat('Total saved', ugx(r.totalSaved))}
+          ${stat('Emergency fund', ugx(r.emergencyFund))}
+          ${stat('Runway', r.knowMonthly ? r.runwayMonths + ' mo' : '—')}
+          ${stat('Goals', esc(goalsLine))}
+          ${stat('Streak', streak.current + ' mo')}
+        </div>
+      </div>`;
 
-    // ── the emergency fund, in its own account ──
-    const efCard = r.hasEmergencyFund
-      ? `<div class="result">
-           <p class="cap">Emergency fund</p>
-           <div class="big"><span class="v">${ugx(r.emergencyFund)}</span><span class="u">UGX</span></div>
-           ${r.knowMonthly
-             ? `<p class="because">Covers <strong>${r.runwayMonths}</strong> month${r.runwayMonths === 1 ? '' : 's'} of expenses.${r.resilience ? ' ' + esc(r.resilience.blurb) : ''}</p>${r.resilience ? ladder(r.resilience) : ''}`
-             : `<p class="because">${esc(r.note || '')}</p>`}
-         </div>`
-      : `<div class="result ask">
-           <p class="cap">No emergency fund yet</p>
-           <p class="because">${esc(r.note || '')}</p>
-           <button class="cta" data-action="goAccounts">Add an Emergency fund account →</button>
-         </div>`;
+    // ── SUB-MENU — drill into one thing at a time ──
+    const tab = (key, label) => `<button class="tab sv-tab${savingsView === key ? ' active' : ''}" data-action="svView" data-view="${key}">${esc(label)}</button>`;
+    const subnav = `<div class="tabs" style="margin-top:.2rem">
+        ${tab('fund', 'Emergency fund')}${tab('goals', 'Goals')}${tab('accounts', 'Accounts')}${tab('momentum', 'Streak & badges')}
+      </div>`;
 
-    const rows = (list) => list.map((a) =>
-      `<tr><td style="padding-left:1.2rem" class="src">${esc(a.name)}</td><td class="num">${ugx(a.amount)}</td></tr>`).join('');
-
-    // ── other savings & investments, shown but NOT part of the runway ──
-    const otherCard = (r.otherLiquidTotal || r.longTerm)
-      ? `<div class="result">
-           <p class="cap">Other savings &amp; investments</p>
-           <div class="tablewrap"><table class="t"><tbody>
-             ${r.otherLiquid.length ? `<tr><td><strong>Liquid savings</strong></td><td class="num"><strong>${ugx(r.otherLiquidTotal)}</strong></td></tr>${rows(r.otherLiquid)}` : ''}
-             ${r.longTermAccounts.length ? `<tr><td><strong>Longer-term / investments</strong></td><td class="num"><strong>${ugx(r.longTerm)}</strong></td></tr>${rows(r.longTermAccounts)}` : ''}
-           </tbody></table></div>
-           <p class="src">Real savings — but not your emergency cushion. The runway is measured only against the emergency-fund account, so a locked fixed deposit or a SACCO never inflates it.</p>
-         </div>`
-      : '';
-
-    const total = `<p class="src">Total across all savings &amp; investment accounts: <strong>${ugx(r.totalSaved)} UGX</strong></p>`;
-
-    // ── GOALS — a target, a date, and a pot ──
-    const goalCard = renderGoals(r.goals || []);
-
-    // ── GAMIFICATION — streak + badges, earned by real saved money ──
-    const gameCard = renderGamify(r.gamification);
-
-    // ── WHERE YOUR MONEY COULD WORK — the ladder + after-tax options ──
-    const investCard = renderInvest(r.invest);
-
-    out.innerHTML = `<div class="out">${efCard}${goalCard}${otherCard}${total}${gameCard}${investCard}</div>`;
-    fillGoalAccounts();
+    out.innerHTML = summary + subnav + '<div id="sv-section" class="stack" style="margin-top:.6rem"></div>';
+    paintSavingsSection();
   }
   window.SelahRenderSavings = (bookId) => renderSavingsInto('bk-savings', bookId);
+
+  // ── INVEST — its own Book tab now ──
+  async function renderInvestInto(containerId, bookId) {
+    const r = await API.savings(bookId || savingsBook);
+    if (!handle(r)) return;
+    const out = $(containerId); if (!out) return;
+    out.innerHTML = renderInvest(r.invest) || '<p class="muted">Nothing to show yet.</p>';
+  }
+  window.SelahRenderInvest = (bookId) => renderInvestInto('bk-invest', bookId);
 
   function renderInvest(inv) {
     if (!inv || !inv.ladder) return '';
