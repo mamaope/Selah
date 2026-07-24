@@ -262,6 +262,13 @@
             '</div>' +
           '</li>'
         )).join('') + '</ul>' +
+        // 🔴 the forecast, shown WITH the plan it belongs to — not on the actual-month screen.
+        (p.summary && p.summary.unconfirmedCount
+          ? '<p class="src">These ' + p.summary.unconfirmedCount + ' unconfirmed line' + (p.summary.unconfirmedCount === 1 ? '' : 's') +
+            ' (' + fmt(p.summary.stillExpectedIn) + ' in, ' + fmt(p.summary.stillExpectedOut) + ' out) are in <strong>none</strong> of your actual figures. ' +
+            'If every one arrived exactly as expected, the net would be ' + fmt(p.summary.ifEverythingArrives.net) +
+            ' — but that is a forecast, and it is not money.</p>'
+          : '') +
       '</div>';
   }
 
@@ -288,15 +295,7 @@
           stat('Income', fmt(s.confirmedIn)) +
           stat('Expense', fmt(s.confirmedOut)) +
           stat('Net', fmt(s.net), s.net < 0 ? 'bad' : '') +
-          stat('Not yet confirmed', s.unconfirmedCount + ' line' + (s.unconfirmedCount === 1 ? '' : 's'), 'muted') +
         '</div>' +
-
-        (s.unconfirmedCount
-          ? '<p class="hint">The ' + s.unconfirmedCount + ' unconfirmed line' + (s.unconfirmedCount === 1 ? '' : 's') +
-            ' (' + fmt(s.stillExpectedIn) + ' in, ' + fmt(s.stillExpectedOut) + ' out) are in <strong>none</strong> of the figures above. ' +
-            'If every one arrived exactly as expected, the net would be ' + fmt(s.ifEverythingArrives.net) +
-            ' — but that is a forecast, and it is not money.</p>'
-          : '') +
 
         // 🔑 THE NUMBER NOBODY ELSE KEEPS.
         (s.didNotArrive && s.didNotArrive.length

@@ -780,9 +780,13 @@ function booksFetch(o) {
   ok('🔴 ...and 2,500,000 appears in NO confirmed figure',
      Object.values(stats).every((v) => !/2,500,000|1,700,000/.test(v)));
 
+  // 🔑 the forecast (unconfirmed/expected) now lives with the plan, on the Budget tab —
+  //    NOT on the actual-month summary. The month view is what really happened.
   const sum = D.getElementById('bk-summary').textContent;
-  ok('the unconfirmed money is shown SEPARATELY, and named a forecast',
-     /unconfirmed line/.test(sum) && /it is not money/i.test(sum));
+  ok('🔴 the month summary carries NO forecast — only what is confirmed', !/it is not money/i.test(sum));
+  const draftsForecast = D.getElementById('bk-drafts').textContent;
+  ok('the unconfirmed money is shown with the plan (Budget tab), named a forecast',
+     /unconfirmed line/.test(draftsForecast) && /it is not money/i.test(draftsForecast));
 
   // 🔴 NO ACCOUNT IS PRE-SELECTED. The UI may suggest; it may not select.
   const picker = D.querySelector('[data-draft-acct]');
@@ -1179,7 +1183,7 @@ section('📊 TABLES — money is tabular, and the entries must be VISIBLE');
      !!led.querySelector('tr.is-missed') && /did not come/i.test(led.textContent));
   ok('...and the newest entry is at the top', rows[0].textContent.includes('2026-07-08'));
 
-  ok('the summary is a STAT GRID, not a paragraph', D.querySelectorAll('#bk-summary .stat').length >= 4);
+  ok('the summary is a STAT GRID, not a paragraph', D.querySelectorAll('#bk-summary .stat').length >= 3);   // Income, Expense, Net (forecast moved to Budget)
 }
 
 // ── 🔴 A SAVED BUDGET LOOKS DIFFERENT FROM A SUGGESTED ONE ────────────────
