@@ -139,6 +139,7 @@
     delCategory: (id, cid)              => call('DELETE', '/books/' + id + '/categories/' + cid),
 
     myAccounts:  ()                     => call('GET',  '/books/accounts/mine'),
+    editAccount: (id, body)             => call('PATCH', '/books/accounts/' + id, body),
     addAccount:  (a)                    => call('POST', '/books/accounts', a),
     setOpening:  (id, amount, asOf)     => call('POST', '/books/accounts/' + id + '/opening', { amount, asOf }),
     reconcile:   (id, actual, asOf)     => call('POST', '/books/accounts/' + id + '/reconcile', { actual, asOf }),

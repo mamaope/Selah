@@ -1261,11 +1261,23 @@
                         : '<span class="pill">not liquid</span>') + '</td>' +
                 '<td class="num amt">' + esc(b.currency) + ' ' + fmt(b.computed) + '</td>' +
                 '<td class="num"><input type="number" placeholder="what it says" data-rec="' + esc(b.accountId) + '" style="max-width:9rem"></td>' +
-                '<td><button class="ghost" data-action="acReconcile" data-id="' + esc(b.accountId) + '">Check</button></td>' +
+                '<td><button class="ghost" data-action="acReconcile" data-id="' + esc(b.accountId) + '">Check</button> ' +
+                    '<button class="link" data-action="acEditToggle" data-id="' + esc(b.accountId) + '">Edit</button></td>' +
               '</tr>' +
               (b.impossible
                 ? '<tr class="is-missed"><td colspan="6" class="wide"><span class="warn">' + esc(b.impossibleBecause) + '</span></td></tr>'
                 : '') +
+              '<tr id="edit-' + esc(b.accountId) + '" hidden><td colspan="6">' +
+                '<div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap">' +
+                  '<div><label>Name</label><input type="text" id="edit-name-' + esc(b.accountId) + '" value="' + esc(b.name) + '"></div>' +
+                  '<div><label>Type</label><select id="edit-type-' + esc(b.accountId) + '">' +
+                    Object.keys(types).map((k) => '<option value="' + esc(k) + '"' + (k === b.type ? ' selected' : '') + '>' + esc(types[k].label) + '</option>').join('') +
+                  '</select></div>' +
+                  '<button class="primary" data-action="acSaveEdit" data-id="' + esc(b.accountId) + '">Save</button>' +
+                  '<button class="ghost" data-action="acEditToggle" data-id="' + esc(b.accountId) + '">Cancel</button>' +
+                '</div>' +
+                '<p id="edit-msg-' + esc(b.accountId) + '" class="hint"></p>' +
+              '</td></tr>' +
               '<tr><td colspan="6" style="padding:0"><div id="rec-' + esc(b.accountId) + '"></div></td></tr>'
             )).join('') +
           '</tbody></table></div>' +
@@ -1289,6 +1301,23 @@
     if (!r.ok) return problem('ac-health', r);
     $('ac-name').value = '';
     A.goAccounts();
+  };
+
+  A.acEditToggle = (el) => {
+    const row = $('edit-' + el.dataset.id);
+    if (row) { row.hidden = !row.hidden; if (!row.hidden) setTimeout(() => { const f = $('edit-name-' + el.dataset.id); if (f) f.focus(); }, 0); }
+  };
+
+  A.acSaveEdit = async (el) => {
+    const id = el.dataset.id;
+    const name = $('edit-name-' + id).value.trim();
+    const type = $('edit-type-' + id).value;
+    const msg = $('edit-msg-' + id);
+    if (!name) { if (msg) msg.textContent = 'An account needs a name.'; return; }
+    const r = await API.editAccount(id, { name, type });
+    if (!handle(r)) return;
+    if (!r.ok) { if (msg) msg.textContent = r.headline || 'That did not work.'; return; }
+    A.goAccounts();      // balances, net worth and savings all rebuild from the change
   };
 
   /** 🔑 "WHERE DID MY MONEY ACTUALLY GO?" */

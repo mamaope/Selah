@@ -744,6 +744,7 @@ function booksFetch(o) {
     if (/\/shopping\/[^/]+$/.test(url) && m === 'DELETE') { opts.listDeleted = url; return json(200, { ok: true }); }
     if (/\/shopping\/[^/]+$/.test(url) && m === 'PATCH') { opts.listRenamed = JSON.parse(init.body); return json(200, { ok: true }); }
     if (/\/forecast$/.test(url)) return json(200, opts.forecast || { ok: true, comingUp: { items: [] }, suggestedBudget: { lines: [], lumpy: [] } });
+    if (/\/books\/accounts\/[^/]+$/.test(url) && m === 'PATCH') { opts.accountEdited = JSON.parse(init.body); return json(200, { ok: true }); }
     if (/\/health$/.test(url))   return json(200, opts.health || { ok: true, balances: [], netWorth: {}, emergencyFund: {}, savingsRate: {} });
     if (/\/savings(\?|$)/.test(url))  return json(200, opts.savings || { ok: true, totalSaved: 0 });
     if (/accounts\/mine$/.test(url)) return json(200, opts.mine || { ok: true, accounts: [], types: { cash: { label: 'Cash' } } });
@@ -1226,7 +1227,9 @@ section('📊 TABLES — money is tabular, and the entries must be VISIBLE');
     netWorth: { netWorth: -2_650_000, assets: 2_350_000, debts: 5_000_000, accountsNeverReconciled: [], perCurrency: [] },
     emergencyFund: { refused: true, because: 'x' }, savingsRate: {} };
 
-  const { w, D } = boot(booksFetch({ health }));
+  const o = { health, mine: { ok: true, accounts: [], types: {
+    bank: { label: 'Bank account (current)' }, savings: { label: 'Savings account' }, sacco: { label: 'SACCO savings' } } } };
+  const { w, D } = boot(booksFetch(o));
   await settle();
   await w.SelahActions.goAccounts(); await settle();
 
@@ -1238,6 +1241,16 @@ section('📊 TABLES — money is tabular, and the entries must be VISIBLE');
   ok('🔴 an IMPOSSIBLE balance is flagged in the row itself',
      !!t.querySelector('tr.is-missed') && /cannot hold -250,000/.test(t.textContent));
   ok('...and every row can be checked against reality', !!t.querySelector('[data-rec="a1"]'));
+
+  // ✏️ EDIT an account's name and type
+  ok('✏️ each account offers Edit', !!t.querySelector('[data-action="acEditToggle"][data-id="a1"]'));
+  w.SelahActions.acEditToggle({ dataset: { id: 'a1' } }); await settle();
+  ok('...toggling reveals the editor with the current name and a type picker',
+     D.getElementById('edit-a1').hidden === false && D.getElementById('edit-name-a1').value === 'Stanbic' && !!D.querySelector('#edit-type-a1 option[value="savings"]'));
+  D.getElementById('edit-name-a1').value = 'Stanbic Savings';
+  D.getElementById('edit-type-a1').value = 'savings';
+  await w.SelahActions.acSaveEdit({ dataset: { id: 'a1' } }); await settle();
+  ok('✏️ saving PATCHes the new name and type', o.accountEdited && o.accountEdited.name === 'Stanbic Savings' && o.accountEdited.type === 'savings');
 }
 
 

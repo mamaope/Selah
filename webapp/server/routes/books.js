@@ -195,6 +195,31 @@ router.post('/accounts', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** Rename an account, or change its type. Balances and history are untouched —
+ *  the account is the same account, just labelled correctly. */
+router.patch('/accounts/:id', async (req, res, next) => {
+  try {
+    const { rows: own } = await db.query('SELECT id FROM accounts WHERE id = $1 AND owner_id = $2', [req.params.id, req.taxpayerId]);
+    if (!own.length) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+
+    const sets = [], vals = []; let n = 1;
+    if (req.body?.name != null) {
+      const nm = String(req.body.name).trim();
+      if (!nm) return res.status(400).json({ ok: false, error: 'NAME_REQUIRED', headline: 'An account needs a name.' });
+      sets.push('name_enc = $' + n++); vals.push(encrypt(nm));
+    }
+    if (req.body?.type != null) {
+      if (!A.ACCOUNT_TYPES[req.body.type]) return res.status(400).json({ ok: false, error: 'BAD_TYPE', headline: 'Unknown account type.' });
+      sets.push('type = $' + n++); vals.push(req.body.type);
+    }
+    if (!sets.length) return res.json({ ok: true });
+    vals.push(req.params.id);
+    await db.query('UPDATE accounts SET ' + sets.join(', ') + ' WHERE id = $' + n, vals);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'UPDATE', entity: 'accounts', entityId: req.params.id, req });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 /** What the account ACTUALLY said. This is what re-grounds the books in reality. */
 router.post('/accounts/:id/opening', async (req, res, next) => {
   try {
