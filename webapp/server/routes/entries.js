@@ -362,7 +362,7 @@ router.post('/:bookId/budget-items/:id/to-shopping', async (req, res, next) => {
       listId = rows[0].id;
     }
     const { rows: it } = await db.query(
-      'INSERT INTO shopping_items (list_id, label_enc, quantity) VALUES ($1,$2,1) RETURNING id', [listId, bi[0].name_enc]);
+      'INSERT INTO shopping_items (list_id, label_enc, quantity, category_id) VALUES ($1,$2,1,$3) RETURNING id', [listId, bi[0].name_enc, bi[0].category_id]);
     await db.query('UPDATE budget_items SET shopping_item_id = $1 WHERE id = $2', [it[0].id, req.params.id]);
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'UPDATE', entity: 'budget_items', entityId: req.params.id, req });
     res.json({ ok: true, listId, itemId: it[0].id, note: 'Added to your shopping list. Mark it bought there when you buy it.' });
@@ -665,12 +665,19 @@ router.get('/:bookId/shopping', async (req, res, next) => {
 
     const out = [];
     for (const l of lists) {
-      const { rows: items } = await db.query('SELECT * FROM shopping_items WHERE list_id = $1 ORDER BY position, created_at', [l.id]);
+      const { rows: items } = await db.query(
+        `SELECT si.*, c.key AS category_key FROM shopping_items si
+           LEFT JOIN categories c ON c.id = si.category_id
+          WHERE si.list_id = $1 ORDER BY si.position, si.created_at`, [l.id]);
       const shaped = items.map((i) => ({
         id: i.id, label: str(i.label_enc), quantity: i.quantity != null ? Number(i.quantity) : 1,
         unit: i.unit, status: i.status, actualAmount: num(i.actual_enc), entryId: i.entry_id,
       }));
-      out.push({ id: l.id, name: str(l.name_enc), ...SHOP.planList(shaped, priceBook) });
+      const catById = {};
+      for (const i of items) catById[i.id] = i.category_key || null;   // 🔑 the budget category it came from
+      const plan = SHOP.planList(shaped, priceBook);
+      plan.rows = plan.rows.map((r) => ({ ...r, category: catById[r.id] || null }));
+      out.push({ id: l.id, name: str(l.name_enc), ...plan });
     }
 
     // 🔑 FORECAST — recurring buys that are due, learned from the purchase history.

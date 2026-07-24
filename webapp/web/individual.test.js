@@ -2111,7 +2111,9 @@ section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an
     [{ id: 'i1', label: 'Sugar', quantity: 2, unit: 'Kg', status: 'pending' },
      { id: 'i2', label: 'Soap',  quantity: 1, status: 'pending' }],
     { sugar: { unitPrice: 1000, unit: 'Kg' } });
-  const o = { shoppingLists: [{ id: 'sl1', name: 'Grocery', ...mkPlan() }] };
+  const plan = mkPlan();
+  plan.rows.find((r) => r.id === 'i1').category = 'food';   // came from a Food budget item
+  const o = { shoppingLists: [{ id: 'sl1', name: 'Grocery', ...plan }] };
   const { w, D } = boot(booksFetch(o));
   await settle();
   await w.SelahActions.goBooks(); await settle();
@@ -2161,6 +2163,7 @@ section('🛒 SHOPPING — a plan that estimates, and a purchase that becomes an
 
   // choose account + category + pay → records the purchase
   ok('the paid form offers a category picker', !!D.getElementById('cat-i1'));
+  ok('🔑 ...pre-selected to the budget category the item came from', D.getElementById('cat-i1').value === 'food');
   D.getElementById('paid-i1').value = '2100';
   D.getElementById('acct-i1').value = 'a1';
   D.getElementById('cat-i1').value = 'food';

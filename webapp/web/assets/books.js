@@ -1162,10 +1162,10 @@
   // ── MY DEFAULTS — the template. "Set it once." ─────────────────────────────
 
   /** Categories for one direction only. `in` money never lists `out` categories. */
-  const catsFor = (direction, byKey) =>
+  const catsFor = (direction, byKey, selected) =>
     '<option value="">— category —</option>' +
     cats.filter((c) => c.direction === direction)
-        .map((c) => '<option value="' + esc(byKey ? c.key : c.id) + '">' + esc(c.label) + '</option>').join('');
+        .map((c) => '<option value="' + esc(byKey ? c.key : c.id) + '"' + ((selected != null && byKey && c.key === selected) ? ' selected' : '') + '>' + esc(c.label) + '</option>').join('');
 
   /** Refill the Record sheet's category dropdown for the current direction, keeping
    *  the selection only if it still belongs. */
@@ -1517,7 +1517,7 @@
           '<div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap">' +
             '<div><label>Paid (total)</label><input type="number" id="paid-' + esc(it.id) + '" placeholder="' + (it.estimate != null ? fmt(it.estimate) : 'amount') + '"></div>' +
             '<div><label>How many' + (it.unit ? ' (' + esc(it.unit) + ')' : '') + '</label><input type="number" id="qty-' + esc(it.id) + '" value="' + esc(it.quantity) + '"></div>' +
-            '<div><label>Category</label><select id="cat-' + esc(it.id) + '">' + catsFor('out', true) + '</select></div>' +
+            '<div><label>Category</label><select id="cat-' + esc(it.id) + '">' + catsFor('out', true, it.category) + '</select></div>' +
             '<div><label>From account</label><select id="acct-' + esc(it.id) + '">' + acctOpts() + '</select></div>' +
             '<button class="primary" data-action="bkShopDone" data-list="' + esc(l.id) + '" data-id="' + esc(it.id) + '">Bought</button>' +
           '</div>' +
