@@ -272,16 +272,25 @@ router.post('/:bookId/entries/:id/confirm', async (req, res, next) => {
 router.post('/:bookId/entries/:id/did-not-arrive', async (req, res, next) => {
   try {
     if (!await guard(req, res)) return;
-    const { rowCount } = await db.query(
+    const { rows: e } = await db.query('SELECT direction FROM entries WHERE id = $1 AND book_id = $2', [req.params.id, req.params.bookId]);
+    if (!e.length) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+
+    // 🔴 AN EXPENSE (or transfer) THAT DID NOT HAPPEN IS NOTHING TO KEEP. You did not
+    //    spend it — there is no evidence to preserve. Remove the draft.
+    if (e[0].direction !== 'in') {
+      await db.query('DELETE FROM entries WHERE id = $1 AND book_id = $2', [req.params.id, req.params.bookId]);
+      await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'DELETE', entity: 'entries', entityId: req.params.id, req });
+      return res.json({ ok: true, deleted: true, note: 'You did not make it, so there is nothing to keep — the draft is removed.' });
+    }
+
+    // 🔑 INCOME promised and never paid IS kept — it is exactly the evidence you will want later.
+    await db.query(
       `UPDATE entries SET status='did_not_arrive', actual_enc=$1, note_enc=$2, updated_at=now()
        WHERE id = $3 AND book_id = $4`,
-      [encrypt(0), req.body?.note ? encrypt(req.body.note) : null, req.params.id, req.params.bookId]
-    );
-    if (!rowCount) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+      [encrypt(0), req.body?.note ? encrypt(req.body.note) : null, req.params.id, req.params.bookId]);
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'UPDATE', entity: 'entries', entityId: req.params.id, req });
-    res.json({ ok: true,
-      kept: true,
-      whyThisMatters: 'We keep this. A deleted line is a fact destroyed — and a record of income that was promised and never paid is exactly the evidence you will want later.' });
+    res.json({ ok: true, kept: true,
+      whyThisMatters: 'We keep this. A record of income that was promised and never paid is exactly the evidence you will want later.' });
   } catch (e) { next(e); }
 });
 

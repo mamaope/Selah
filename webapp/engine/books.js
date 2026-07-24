@@ -291,8 +291,10 @@ function summarise(entries, opts) {
     stillExpectedOut: expectedOut,
     unconfirmedCount: drafts.length,
 
-    // ── 🔑 WHAT DID NOT COME. The number nobody else keeps. ─────────────────
-    didNotArrive: missed.map((e) => ({
+    // ── 🔑 WHAT DID NOT COME. INCOME promised and never paid — the number nobody
+    //    else keeps. An EXPENSE that did not happen is not "did not come"; it is
+    //    simply money you did not spend, so it never belongs on this list. ─────
+    didNotArrive: missed.filter((e) => e.direction === 'in').map((e) => ({
       label: e.label, direction: e.direction, expected: UGX(e.expected),
     })),
     didNotArriveTotal: missed.reduce((a, e) => a + UGX(e.expected), 0),

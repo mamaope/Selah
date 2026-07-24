@@ -74,6 +74,16 @@ t('🔑 THE SALARY DID NOT COME — and the app does not pretend it did', () => 
   assert.strictEqual(s.didNotArrive[0].label, 'Salary');
 });
 
+t('🔴 an EXPENSE that did not happen is NOT "did not come" — the card is income only', () => {
+  const es = [
+    B.markDidNotArrive({ label: 'Salary', expected: 2_500_000, direction: 'in', status: 'expected' }),
+    B.markDidNotArrive({ label: 'Rent',   expected: 600_000,   direction: 'out', status: 'expected' }),
+  ];
+  const s = B.summarise(es);
+  assert.strictEqual(s.didNotArrive.length, 1, 'only the income line is a "did not come"');
+  assert.strictEqual(s.didNotArrive[0].label, 'Salary');
+});
+
 t('🔑 ...and the record is KEPT, not deleted. It is the evidence.', () => {
   const e = B.markDidNotArrive({ label: 'Salary', expected: 2_500_000, direction: 'in', status: 'expected' });
   assert.strictEqual(e.status, 'did_not_arrive');
