@@ -225,6 +225,14 @@ t('an account can OVERRIDE its liquidity (SACCO shares are not SACCO savings)', 
   assert.strictEqual(A.isLiquid({ type: 'sacco', liquid: false }), false);
 });
 
+t('🔴 liquid = NULL means "use the type default" — not a false. Cash stays liquid.', () => {
+  // the DB stores NULL when no explicit liquidity is chosen; it must not read as false
+  assert.strictEqual(A.isLiquid({ type: 'cash', liquid: null }), true);
+  assert.strictEqual(A.isLiquid({ type: 'mobile_money', liquid: null }), true);
+  assert.strictEqual(A.isLiquid({ type: 'land', liquid: null }), false);   // still the type default
+  assert.strictEqual(A.isLiquid({ type: 'cash', liquid: false }), false);  // an explicit false still overrides
+});
+
 t('🔴 with no confirmed spending, the runway REFUSES rather than dividing by zero', () => {
   const e = A.emergencyFund([A.computedBalance(CASH, { amount: 500_000 }, [], [])], 0);
   assert.ok(e.refused);

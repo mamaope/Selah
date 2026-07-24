@@ -92,7 +92,9 @@ const ACCOUNT_TYPES = {
 
 const isAsset  = (a) => (ACCOUNT_TYPES[a.type] || {}).side === 'asset';
 const isDebt   = (a) => (ACCOUNT_TYPES[a.type] || {}).side === 'debt';
-const isLiquid = (a) => a.liquid !== undefined ? Boolean(a.liquid) : Boolean((ACCOUNT_TYPES[a.type] || {}).liquid);
+// 🔴 NULL means "use the type's default" — not an explicit false. `!= null` catches
+//    both null (from the DB) and undefined; only a real true/false overrides the type.
+const isLiquid = (a) => a.liquid != null ? Boolean(a.liquid) : Boolean((ACCOUNT_TYPES[a.type] || {}).liquid);
 // 🔑 Only money in a savings/investment vehicle is SAVINGS. Cash, MoMo and a
 //    current account are spending money — never counted as a cushion you built.
 const isSavings = (a) => a.savings !== undefined ? Boolean(a.savings) : Boolean((ACCOUNT_TYPES[a.type] || {}).savings);
