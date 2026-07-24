@@ -1958,7 +1958,7 @@ section('🔁 TRANSFER — two accounts, no units, and a goal when it lands in s
   D.getElementById('bk-to').value = 'a3';
   D.getElementById('bk-to').dispatchEvent(new w.Event('change', { bubbles: true })); await settle();
   ok('🔑 a transfer INTO a savings account offers a goal to earmark', D.getElementById('bk-goal-row').hidden === false);
-  ok('...populated with the Book\'s goals (a contribution is tagged to the goal, not the account)', !!D.querySelector('#bk-goal option[value="g1"]'));
+  ok('...populated with the goals backed by that account', !!D.querySelector('#bk-goal option[value="g1"]'));
 
   // record the transfer toward the goal
   D.getElementById('bk-from').value = 'a1';
@@ -1974,12 +1974,11 @@ section('🔁 TRANSFER — two accounts, no units, and a goal when it lands in s
   D.getElementById('bk-to').dispatchEvent(new w.Event('change', { bubbles: true })); await settle();
   ok('🔴 a transfer to a non-savings account has no goal picker', D.getElementById('bk-goal-row').hidden === true);
 
-  // 🔑 a DIFFERENT savings account still lists the same Book goals — goals are not
-  //    tied to one account; the tag is what counts.
+  // a savings account with NO linked goals still shows the picker (so you know you could earmark)
   D.getElementById('bk-to').value = 'a4';
   D.getElementById('bk-to').dispatchEvent(new w.Event('change', { bubbles: true })); await settle();
-  ok('🔑 any savings destination lists the Book\'s goals, whatever account backs them',
-     D.getElementById('bk-goal-row').hidden === false && !!D.querySelector('#bk-goal option[value="g1"]'));
+  ok('🔑 a savings account with no goals still shows the picker, with an honest empty state',
+     D.getElementById('bk-goal-row').hidden === false && /no goal linked to this account/.test(D.getElementById('bk-goal').textContent));
 }
 
 section('🧮 UNIT PRICING — quantity in, total out; and the price book updates');
