@@ -853,19 +853,19 @@ let savingsData = null;                 // last /savings response, cached for su
   async function fillGoalAccounts() {
     const r = await API.myAccounts();
     if (!r || !r.ok) return;
-    const inBook = (r.accounts || []).filter((a) => !savingsBook || a.bookId === savingsBook);   // this Book's accounts
+    const all = r.accounts || [];   // 🔑 accounts are shared across Books
 
-    // create-goal picker: savings-type accounts only
+    // create-goal picker: savings-type accounts
     const savingsTypes = ['emergency_fund', 'savings', 'sacco', 'vsla', 'fixed_deposit', 'unit_trust', 'treasury', 'shares', 'land'];
     const sel = $('goal-acct');
     if (sel) sel.innerHTML = '<option value="">— optional —</option>' +
-      inBook.filter((a) => savingsTypes.includes(a.type)).map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+      all.filter((a) => savingsTypes.includes(a.type)).map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
 
-    // per-goal contribute source: any account in the Book EXCEPT the goal's own
+    // per-goal contribute source: any account EXCEPT the goal's own
     ((savingsData && savingsData.goals) || []).forEach((g) => {
       const fs = $('cf-from-' + g.id);
       if (fs) fs.innerHTML = '<option value="">— choose —</option>' +
-        inBook.filter((a) => a.id !== g.accountId).map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+        all.filter((a) => a.id !== g.accountId).map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
     });
   }
 

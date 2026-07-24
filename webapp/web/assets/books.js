@@ -1195,18 +1195,13 @@
     window.SelahShow('accounts');
     $('ac-health').innerHTML = '<p class="muted">Loading…</p>';
 
-    const [h, mine, bl] = await Promise.all([API.health(), API.myAccounts(), API.books()]);
+    const [h, mine] = await Promise.all([API.health(), API.myAccounts()]);
     if (!handle(h)) return;
     if (!h.ok) return problem('ac-health', h);
 
     const types = (mine.ok && mine.types) || {};
     $('ac-type').innerHTML = Object.keys(types).map((k) =>
       '<option value="' + esc(k) + '">' + esc(types[k].label) + '</option>').join('');
-
-    // 🔑 an account belongs to a Book now — choose which
-    const bks = (bl.ok && bl.books) || [];
-    const bsel = $('ac-book');
-    if (bsel) bsel.innerHTML = bks.map((b) => '<option value="' + esc(b.id) + '"' + (b.isDefault ? ' selected' : '') + '>' + esc(b.name) + '</option>').join('');
 
     const nw = h.netWorth || {};
     const ef = h.emergencyFund || {};
@@ -1288,7 +1283,6 @@
       name: $('ac-name').value.trim(),
       type: $('ac-type').value,
       currency: $('ac-cur').value,
-      bookId: ($('ac-book') && $('ac-book').value) || undefined,
     });
     if (!handle(r)) return;
     if (!r.ok) return problem('ac-health', r);

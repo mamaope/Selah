@@ -182,21 +182,12 @@ router.post('/accounts', async (req, res, next) => {
     const { name, type, currency, bookId, liquid } = req.body || {};
     if (!name || !A.ACCOUNT_TYPES[type]) return res.status(400).json({ ok: false, error: 'BAD_ACCOUNT' });
 
-    // 🔑 ACCOUNTS ARE BOOK-SCOPED. Savings, budgets and the runway are all read
-    //    per book, so an account must belong to one. If none is named, it lands in
-    //    the owner's default book.
-    let book = bookId;
-    if (book) { if (!await mayUse(book, req.taxpayerId)) return res.status(404).json({ ok: false, error: 'NOT_FOUND' }); }
-    else {
-      const { rows: dflt } = await db.query('SELECT id FROM books WHERE owner_id = $1 AND is_default LIMIT 1', [req.taxpayerId]);
-      if (!dflt.length) return res.status(400).json({ ok: false, error: 'NO_BOOK', headline: 'Create a Book first — an account belongs to one.' });
-      book = dflt[0].id;
-    }
-
+    // 🔑 ACCOUNTS ARE SHARED — they belong to the PERSON and are usable from any
+    //    Book. Savings is attributed per-book by what each Book contributes.
     const { rows } = await db.query(
       `INSERT INTO accounts (owner_id, book_id, name_enc, type, currency, liquid)
-       VALUES (NULL,$1,$2,$3,$4,$5) RETURNING id`,
-      [book, encrypt(String(name).trim()), type,
+       VALUES ($1,NULL,$2,$3,$4,$5) RETURNING id`,
+      [req.taxpayerId, encrypt(String(name).trim()), type,
        currency === 'USD' ? 'USD' : 'UGX', liquid === undefined ? null : Boolean(liquid)]
     );
     await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'accounts', entityId: rows[0].id, req });
@@ -295,14 +286,10 @@ router.get('/savings', async (req, res, next) => {
     const book = await resolveBook(req.query.book, req.taxpayerId);
     if (!book) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
 
-    const balances = await db.audited(
-      { actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'READ', entity: 'accounts', req },
-      () => balancesForBook(book)
-    );
-
     const from = req.query.from || `${today().slice(0, 7)}-01`;
     const to = req.query.to || today();
 
+    // this Book's entries, and all the person's (shared) accounts
     const { rows: ents } = await db.query(
       `SELECT e.*, c.key AS category_key FROM entries e
          LEFT JOIN categories c ON c.id = e.category_id
@@ -310,19 +297,32 @@ router.get('/savings', async (req, res, next) => {
     const entries = ents.map(shapeEntry);
     const act = R.actuals(entries, from, to);
 
-    // 🔑 GOALS — each watches a savings account. Progress is that account's balance;
-    //    pace is what has actually gone INTO it lately, for an honest projection.
+    const { rows: accs } = await db.audited(
+      { actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'READ', entity: 'accounts', req },
+      () => db.query('SELECT * FROM accounts WHERE owner_id = $1', [req.taxpayerId]));
+    const accById = {};
+    for (const a of accs) accById[a.id] = a;
+
+    // 🔑 SAVINGS IS ATTRIBUTED PER-BOOK BY CONTRIBUTION. Accounts are shared, so a
+    //    Book's savings is what THAT Book moved INTO them (its entries), not the
+    //    account's whole balance. Only accounts this Book has funded appear.
+    const balances = accs.map((a) => {
+      const acc = shapeAccount(a);
+      return { accountId: a.id, name: acc.name, type: a.type, currency: a.currency,
+        side: A.isDebt({ type: a.type }) ? 'debt' : 'asset',
+        liquid: A.isLiquid({ type: a.type, liquid: a.liquid }),
+        computed: bookContribution(entries, a.id) };
+    }).filter((b) => b.computed > 0);
+
+    // 🔑 GOALS — progress is what THIS Book tagged to the goal.
     const { rows: gs } = await db.query(
       "SELECT * FROM savings_goals WHERE book_id = $1 AND status = 'active' ORDER BY created_at", [book]);
-    const balById = {};
-    for (const b of balances) balById[b.accountId] = b;
     const goals = gs.map((g) => {
-      const acct = g.account_id ? balById[g.account_id] : null;
-      // 🔑 progress is what is TAGGED to this goal, not the whole account balance
+      const acct = g.account_id ? accById[g.account_id] : null;
       const saved = g.account_id ? goalSaved(entries, g.id, g.account_id) : 0;
       const pace = g.account_id ? goalPace(entries, g.id, g.account_id, today()) : 0;
       return {
-        id: g.id, accountId: g.account_id, accountName: acct ? acct.name : null,
+        id: g.id, accountId: g.account_id, accountName: acct ? str(acct.name_enc) : null,
         ...GOALS.assess({ name: str(g.name_enc), target: num(g.target_enc),
           saved, targetDate: g.target_date ? iso(g.target_date) : null, monthlyContribution: pace }, { asOf: today() }),
       };
@@ -331,7 +331,7 @@ router.get('/savings', async (req, res, next) => {
     const overview = SAV.overview(balances, act ? act.spend : 0);
 
     // 🎮 GAMIFICATION — streaks and badges, earned only by money that really moved.
-    const savingsIds = balances.filter((b) => b.side === 'asset' && A.isSavings(b)).map((b) => b.accountId);
+    const savingsIds = accs.filter((a) => A.isSavings({ type: a.type })).map((a) => a.id);
     const series = savingsMonthlySeries(entries, savingsIds, today(), 12);
     const streak = GAMIFY.savingStreak(series);
     const gamification = {
@@ -382,6 +382,18 @@ function savingsMonthlySeries(entries, savingsIds, asOf, months = 12) {
     if ((e.direction === 'out' && ids.has(e.accountId)) || (e.direction === 'transfer' && ids.has(e.fromAccountId))) bucket.net -= amt;
   }
   return seq;
+}
+
+/** Net money THIS book moved into an account (all-time), from its entries. */
+function bookContribution(entries, accountId) {
+  let net = 0;
+  for (const e of entries) {
+    if (!['confirmed', 'unplanned'].includes(e.status)) continue;
+    const amt = Number((e.actual != null ? e.actual : e.expected) || 0);
+    if ((e.direction === 'in' && e.accountId === accountId) || (e.direction === 'transfer' && e.toAccountId === accountId)) net += amt;
+    if ((e.direction === 'out' && e.accountId === accountId) || (e.direction === 'transfer' && e.fromAccountId === accountId)) net -= amt;
+  }
+  return Math.round(net);
 }
 
 /** Average money moved INTO an account per month over the trailing window (default 3 months). */
