@@ -319,8 +319,8 @@ router.get('/savings', async (req, res, next) => {
       "SELECT * FROM savings_goals WHERE book_id = $1 AND status = 'active' ORDER BY created_at", [book]);
     const goals = gs.map((g) => {
       const acct = g.account_id ? accById[g.account_id] : null;
-      const saved = g.account_id ? goalSaved(entries, g.id, g.account_id) : 0;
-      const pace = g.account_id ? goalPace(entries, g.id, g.account_id, today()) : 0;
+      const saved = goalSaved(entries, g.id);
+      const pace = goalPace(entries, g.id, today());
       return {
         id: g.id, accountId: g.account_id, accountName: acct ? str(acct.name_enc) : null,
         ...GOALS.assess({ name: str(g.name_enc), target: num(g.target_enc),
@@ -581,24 +581,23 @@ module.exports = router;
 module.exports.mayUse = mayUse;
 module.exports.entriesOf = entriesOf;
 module.exports.usableAccounts = usableAccounts;
-/** Net money TAGGED to a goal — contributions into its account, less any tagged out. */
-function goalSaved(entries, goalId, accountId) {
+/** Money TAGGED to a goal — every transfer earmarked for it is a contribution,
+ *  whichever savings account it landed in. */
+function goalSaved(entries, goalId) {
   let net = 0;
   for (const e of entries) {
-    if (e.goalId !== goalId) continue;
-    const amt = Number((e.actual != null ? e.actual : e.expected) || 0);
-    if (e.toAccountId === accountId) net += amt;
-    else if (e.fromAccountId === accountId) net -= amt;
+    if (e.goalId !== goalId || e.direction !== 'transfer') continue;
+    net += Number((e.actual != null ? e.actual : e.expected) || 0);
   }
   return Math.round(net);
 }
 /** Trailing monthly pace of money tagged to a goal. */
-function goalPace(entries, goalId, accountId, asOf, months = 3) {
+function goalPace(entries, goalId, asOf, months = 3) {
   const cutoff = new Date(Date.parse(asOf + 'T00:00:00Z') - months * 30.436875 * 86400000).toISOString().slice(0, 10);
   let into = 0;
   for (const e of entries) {
-    if (e.goalId !== goalId || !e.occurredOn || e.occurredOn < cutoff) continue;
-    if (e.toAccountId === accountId) into += Number((e.actual != null ? e.actual : e.expected) || 0);
+    if (e.goalId !== goalId || e.direction !== 'transfer' || !e.occurredOn || e.occurredOn < cutoff) continue;
+    into += Number((e.actual != null ? e.actual : e.expected) || 0);
   }
   return Math.round(into / months);
 }

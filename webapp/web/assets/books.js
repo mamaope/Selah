@@ -948,10 +948,11 @@
     // 🔑 show whenever a transfer lands in a savings account — even with no goals yet,
     //    so the person can see they could earmark one.
     if (dir !== 'transfer' || !isSav) { row.hidden = true; sel.value = ''; return; }
-    const goalsFor = bkGoals.filter((g) => g.accountId === to);
-    sel.innerHTML = goalsFor.length
-      ? '<option value="">— no specific goal —</option>' + goalsFor.map((g) => '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>').join('')
-      : '<option value="">— no goal linked to this account yet —</option>';
+    // 🔑 list ALL this Book's goals — a contribution is tagged to the goal, not tied
+    //    to a specific savings account. Money into any savings account can go toward any goal.
+    sel.innerHTML = bkGoals.length
+      ? '<option value="">— no specific goal —</option>' + bkGoals.map((g) => '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>').join('')
+      : '<option value="">— no goals yet; create one in the Savings tab —</option>';
     row.hidden = false;
   }
 
