@@ -961,8 +961,9 @@
     // A transfer needs TWO accounts and touches ZERO totals.
     $('bk-acct-one').hidden = dir === 'transfer';
     $('bk-acct-two').hidden = dir !== 'transfer';
-    // 🔴 A TRANSFER HAS NO UNIT PRICE — it moves money, it does not buy a thing.
-    if ($('bk-units-row')) $('bk-units-row').hidden = dir === 'transfer';
+    // 🔴 UNITS ARE ONLY FOR MONEY OUT — you buy 2 Kg of sugar, but you do not earn
+    //    salary or move money BY the kilo. Hidden for income and transfers.
+    if ($('bk-units-row')) $('bk-units-row').hidden = dir !== 'out';
     // 🔴 ...and no CATEGORY — a transfer is neither income nor spending.
     if ($('bk-cat-field')) $('bk-cat-field').hidden = dir === 'transfer';
     // 🔑 the question itself changes: a transfer has a reason, not a "what".
@@ -1042,8 +1043,8 @@
       direction: dir,
       label: $('bk-label').value.trim(),
       amount: rawAmount === '' ? undefined : Number(rawAmount),
-      quantity: qty === '' ? undefined : Number(qty),
-      unit: unit || undefined,
+      quantity: dir === 'out' && qty !== '' ? Number(qty) : undefined,
+      unit: dir === 'out' && unit ? unit : undefined,
       category: dir === 'transfer' ? null : ($('bk-cat').value || null),
       occurredOn: $('bk-date').value || today(),
     };

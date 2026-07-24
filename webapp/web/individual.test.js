@@ -1950,6 +1950,11 @@ section('🔁 TRANSFER — two accounts, no units, and a goal when it lands in s
   // switch to transfer
   w.SelahActions.bkDir({ dataset: { dir: 'transfer' } }); await settle();
   ok('🔴 a transfer hides the unit/quantity fields — moving money buys no thing', D.getElementById('bk-units-row').hidden === true);
+  w.SelahActions.bkDir({ dataset: { dir: 'in' } }); await settle();
+  ok('🔴 income needs no units either — you do not earn salary by the kilo', D.getElementById('bk-units-row').hidden === true);
+  w.SelahActions.bkDir({ dataset: { dir: 'out' } }); await settle();
+  ok('🔑 money-out still shows units (2 Kg of sugar)', D.getElementById('bk-units-row').hidden === false);
+  w.SelahActions.bkDir({ dataset: { dir: 'transfer' } }); await settle();
   ok('🔑 a transfer shows two accounts (from / to)', D.getElementById('bk-acct-two').hidden === false);
   ok('🔴 a transfer hides the Category field — it is neither income nor spending', D.getElementById('bk-cat-field').hidden === true);
   ok('🔑 the question is reworded for a transfer', D.querySelector('label[for="bk-label"]').textContent === 'Reason for transfer');
