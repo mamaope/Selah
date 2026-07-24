@@ -289,6 +289,86 @@ router.post('/:bookId/entries/:id/did-not-arrive', async (req, res, next) => {
 // BUDGETS — instances, never divided
 // ═══════════════════════════════════════════════════════════════════════════
 
+/** Sum of planned items in a category for a window (minor units). */
+async function plannedSum(bookId, categoryId, startsOn, endsOn) {
+  const { rows } = await db.query(
+    'SELECT estimate_enc FROM budget_items WHERE book_id = $1 AND category_id = $2 AND starts_on = $3 AND ends_on = $4',
+    [bookId, categoryId, startsOn, endsOn]);
+  return rows.reduce((a, r) => a + (num(r.estimate_enc) || 0), 0);
+}
+
+/** Make sure a category's budget for a window is at least `floor` — never lower it. */
+async function ensureBudgetFloor(bookId, categoryId, startsOn, endsOn, floor) {
+  const { rows } = await db.query(
+    'SELECT id, amount_enc FROM budgets WHERE book_id = $1 AND category_id = $2 AND starts_on = $3 AND ends_on = $4',
+    [bookId, categoryId, startsOn, endsOn]);
+  const current = rows.length ? (num(rows[0].amount_enc) || 0) : 0;
+  if (floor <= current && rows.length) return;
+  await db.query(
+    `INSERT INTO budgets (book_id, category_id, amount_enc, starts_on, ends_on)
+     VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (book_id, category_id, starts_on, ends_on)
+     DO UPDATE SET amount_enc = EXCLUDED.amount_enc`,
+    [bookId, categoryId, encrypt(Math.max(current, floor)), startsOn, endsOn]);
+}
+
+/** Add a planned item to a category, and lift the budget to at least the new sum. */
+router.post('/:bookId/budget-items', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    const { category, name, estimate, startsOn, endsOn } = req.body || {};
+    const nm = String(name || '').trim();
+    if (!nm) return res.status(400).json({ ok: false, error: 'NAME_REQUIRED', headline: 'What do you plan to buy?' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startsOn || '')) || !/^\d{4}-\d{2}-\d{2}$/.test(String(endsOn || '')))
+      return res.status(400).json({ ok: false, error: 'BAD_WINDOW', headline: 'A plan needs a month.' });
+    const { rows: cat } = await db.query('SELECT id FROM categories WHERE book_id = $1 AND key = $2', [req.params.bookId, category]);
+    if (!cat.length) return res.status(400).json({ ok: false, error: 'UNKNOWN_CATEGORY' });
+
+    const { rows } = await db.query(
+      'INSERT INTO budget_items (book_id, category_id, name_enc, estimate_enc, starts_on, ends_on) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [req.params.bookId, cat[0].id, encrypt(nm), encrypt(Number(estimate || 0)), startsOn, endsOn]);
+    // 🔑 the budget can only go UP to meet the plan, never down.
+    await ensureBudgetFloor(req.params.bookId, cat[0].id, startsOn, endsOn, await plannedSum(req.params.bookId, cat[0].id, startsOn, endsOn));
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'CREATE', entity: 'budget_items', entityId: rows[0].id, req });
+    res.json({ ok: true, id: rows[0].id });
+  } catch (e) { next(e); }
+});
+
+router.delete('/:bookId/budget-items/:id', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    const { rowCount } = await db.query('DELETE FROM budget_items WHERE id = $1 AND book_id = $2', [req.params.id, req.params.bookId]);
+    if (!rowCount) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'DELETE', entity: 'budget_items', entityId: req.params.id, req });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/** Put a planned budget item onto a shopping list, so it can be bought and tracked.
+ *  It lands on an open 'Shopping plan' list (created if needed); buying it via the
+ *  Shopping tab records the expense in the normal way. */
+router.post('/:bookId/budget-items/:id/to-shopping', async (req, res, next) => {
+  try {
+    if (!await guard(req, res)) return;
+    const { rows: bi } = await db.query('SELECT * FROM budget_items WHERE id = $1 AND book_id = $2', [req.params.id, req.params.bookId]);
+    if (!bi.length) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    if (bi[0].shopping_item_id) return res.json({ ok: true, alreadyOnList: true });
+
+    // find an open list, or start one
+    const { rows: lists } = await db.query("SELECT id FROM shopping_lists WHERE book_id = $1 AND status = 'open' ORDER BY created_at DESC LIMIT 1", [req.params.bookId]);
+    let listId = lists.length ? lists[0].id : null;
+    if (!listId) {
+      const { rows } = await db.query('INSERT INTO shopping_lists (book_id, name_enc) VALUES ($1,$2) RETURNING id', [req.params.bookId, encrypt('Shopping plan')]);
+      listId = rows[0].id;
+    }
+    const { rows: it } = await db.query(
+      'INSERT INTO shopping_items (list_id, label_enc, quantity) VALUES ($1,$2,1) RETURNING id', [listId, bi[0].name_enc]);
+    await db.query('UPDATE budget_items SET shopping_item_id = $1 WHERE id = $2', [it[0].id, req.params.id]);
+    await db.audit({ actorId: req.taxpayerId, subjectId: req.taxpayerId, action: 'UPDATE', entity: 'budget_items', entityId: req.params.id, req });
+    res.json({ ok: true, listId, itemId: it[0].id, note: 'Added to your shopping list. Mark it bought there when you buy it.' });
+  } catch (e) { next(e); }
+});
+
 router.post('/:bookId/budgets', async (req, res, next) => {
   try {
     if (!await guard(req, res)) return;
@@ -299,6 +379,14 @@ router.post('/:bookId/budgets', async (req, res, next) => {
       return res.status(400).json({ ok: false, error: 'BAD_WINDOW',
         headline: 'A budget needs a start and an end.',
         why: ['A budget is an INSTANCE with a window — "school fees, Term 2". That is what lets us sum budgets over a quarter instead of dividing one by three.'] });
+    }
+    // 🔴 A budget may not be smaller than the things you have already planned to buy.
+    const floor = await plannedSum(req.params.bookId, cat[0].id, startsOn, endsOn);
+    if (Number(amount || 0) < floor) {
+      return res.status(400).json({ ok: false, error: 'BELOW_PLANNED',
+        headline: 'That is less than you have already planned to buy.',
+        why: ['This category has ' + floor + ' of planned items in it. A budget below that would not even cover the list.'],
+        floor });
     }
     const { rows } = await db.query(
       `INSERT INTO budgets (book_id, category_id, label_enc, amount_enc, starts_on, ends_on)
@@ -365,6 +453,18 @@ router.get('/:bookId/period', async (req, res, next) => {
       // 🔑 the Book's goals, so a transfer INTO a savings account can be earmarked
       goals: (await db.query("SELECT id, name_enc, account_id FROM savings_goals WHERE book_id = $1 AND status = 'active' ORDER BY created_at", [req.params.bookId]))
                .rows.map((g) => ({ id: g.id, name: str(g.name_enc), accountId: g.account_id })),
+      // 🔑 planned items per category, for this window — the bottom-up budget
+      budgetItems: await (async () => {
+        const { rows } = await db.query(
+          `SELECT bi.id, bi.name_enc, bi.estimate_enc, bi.shopping_item_id, c.key AS category_key
+             FROM budget_items bi JOIN categories c ON c.id = bi.category_id
+            WHERE bi.book_id = $1 AND bi.starts_on <= $2 AND bi.ends_on >= $3
+            ORDER BY bi.created_at`, [req.params.bookId, to, from]);
+        const by = {};
+        for (const r of rows) (by[r.category_key] = by[r.category_key] || []).push(
+          { id: r.id, name: str(r.name_enc), estimate: num(r.estimate_enc), onList: Boolean(r.shopping_item_id) });
+        return by;
+      })(),
     });
   } catch (e) { next(e); }
 });

@@ -723,6 +723,7 @@ function booksFetch(o) {
         budgets: opts.budgets || [],
         accounts: opts.accounts || [{ id: 'a1', name: 'Stanbic', type: 'bank', scope: 'personal' }, { id: 'a2', name: 'MTN MoMo', type: 'mobile_money', scope: 'personal' }],
         goals: opts.periodGoals || [],
+        budgetItems: opts.budgetItems || {},
       });
     }
     if (/\/categories\/[^/]+$/.test(url) && m === 'PATCH')  { opts.renamed = JSON.parse(init.body); return json(200, { ok: true }); }
@@ -731,6 +732,9 @@ function booksFetch(o) {
     if (/\/confirm$/.test(url)) { opts.confirmed = JSON.parse(init.body); return json(opts.confirmStatus || 200, opts.confirmResponse || { ok: true }); }
     if (/did-not-arrive$/.test(url)) { opts.missed = true; return json(200, { ok: true, kept: true }); }
     if (/\/entries$/.test(url) && m === 'POST') { opts.entryPosted = JSON.parse(init.body); return json(200, { ok: true, id: 'e1' }); }
+    if (/\/budget-items$/.test(url) && m === 'POST') { opts.biAdded = JSON.parse(init.body); return json(200, { ok: true, id: 'bi9' }); }
+    if (/\/budget-items\/[^/]+\/to-shopping$/.test(url) && m === 'POST') { opts.biToShop = url; return json(200, { ok: true, listId: 'l1', itemId: 'si1' }); }
+    if (/\/budget-items\/[^/]+$/.test(url) && m === 'DELETE') { opts.biDeleted = url; return json(200, { ok: true }); }
     if (/\/budgets\/[^/]+$/.test(url) && m === 'DELETE') { opts.budgetDeleted = url; return json(200, { ok: true }); }
     if (/\/values$/.test(url) && m === 'GET') return json(200, { ok: true, items: opts.trackedItems || [] });
     if (/\/values$/.test(url) && m === 'POST') { opts.recorded = JSON.parse(init.body); return json(200, { ok: true, id: 'v1', itemKey: opts.recorded.itemKey }); }
@@ -860,7 +864,7 @@ function booksFetch(o) {
 // ── 🔑 THE GAS CYLINDER, ON SCREEN ─────────────────────────────────────────
 {
   const forecast = { ok: true,
-    comingUp: { items: [{ label: 'Gas', nextDue: '2026-07-16', daysAway: 4, overdue: false,
+    comingUp: { items: [{ label: 'Gas', category: 'transport', nextDue: '2026-07-16', daysAway: 4, overdue: false,
       typicalAmount: 90_000, says: 'You buy this about every 51 days. Last on 2026-05-26 — next around 2026-07-16.' }],
       notEnoughHistory: [], whatThisCannotSee: ['A funeral. A school term.'] },
     suggestedBudget: { lines: [{ category: 'rent', suggested: 800_000, working: 'Over 6 months you spent 4,800,000.' }],
@@ -869,7 +873,8 @@ function booksFetch(o) {
       thisIsASuggestion: 'This is a SUGGESTED BUDGET, not a plan and certainly not money.',
       whatThisCannotSee: ['A school term starting. A funeral.'] } };
 
-  const { w, D } = boot(booksFetch({ forecast }));
+  const o = { forecast };
+  const { w, D } = boot(booksFetch(o));
   await settle();
   await w.SelahActions.goBooks(); await settle();
   await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
@@ -884,6 +889,12 @@ function booksFetch(o) {
   ok('🔴 ...and says averaging it would have been wrong in every month', /WRONG IN EVERY ONE OF THOSE MONTHS/.test(f));
   ok('the forecast announces itself as a SUGGESTION, not money', /not a plan and certainly not money/.test(f));
   ok('...and says what it cannot see', /funeral/i.test(f));
+
+  // 🔑 an expected item can be added to the budget, in its own category
+  const addBtn = D.querySelector('#bk-forecast [data-action="fcToBudget"]');
+  ok('🔑 an expected item offers "Add to budget"', !!addBtn && addBtn.dataset.cat === 'transport');
+  await w.SelahActions.fcToBudget(addBtn); await settle();
+  ok('🔑 adding it POSTs a planned item under the right category', o.biAdded && o.biAdded.category === 'transport' && o.biAdded.name === 'Gas' && o.biAdded.estimate === 90000);
 }
 
 // ── 🔴 TWO CURRENCIES, NO RATE → NO SINGLE NET WORTH ───────────────────────
@@ -1124,7 +1135,7 @@ section('🧭 FINDING YOUR WAY — the app was unnavigable, and that is a bug');
   // 🔑 EVERY ROW IS THE SAME ROW. A lump is not a special KIND of budget line — it
   //    is a budget line with a number in one month and a zero in the next, which is
   //    what a lump IS. The behaviour is unchanged; it is simply no longer announced.
-  const shapes = [...D.querySelectorAll('#bk-budget tbody tr')].map((r) => r.children.length);
+  const shapes = [...D.querySelectorAll('#bk-budget tbody tr:not(.bi-row)')].map((r) => r.children.length);
   ok('🔑 every row has the SAME shape — no special case on the screen',
      shapes.length > 1 && shapes.every((n) => n === shapes[0]));
   ok('🔴 ...and NO monthly slice is ever pre-filled — a twelfth of a term is a lie in every month',
@@ -1184,6 +1195,44 @@ section('📊 TABLES — money is tabular, and the entries must be VISIBLE');
   ok('...and the newest entry is at the top', rows[0].textContent.includes('2026-07-08'));
 
   ok('the summary is a STAT GRID, not a paragraph', D.querySelectorAll('#bk-summary .stat').length >= 3);   // Income, Expense, Net (forecast moved to Budget)
+}
+
+// ── 🧾 PLANNED ITEMS IN A BUDGET CATEGORY (bottom-up budget) ────────────────
+section('🧾 BUDGET — planned items build a category, and the budget cannot go below their sum');
+{
+  const budgetItems = { food: [
+    { id: 'bi1', name: 'Sugar', estimate: 6_000, onList: false },
+    { id: 'bi2', name: 'Rice',  estimate: 4_000, onList: true },
+  ] };
+  const o = { budgetItems };
+  const { w, D } = boot(booksFetch(o));
+  await settle();
+  await w.SelahActions.goBooks(); await settle();
+  await w.SelahActions.bkOpen(D.querySelector('[data-action="bkOpen"]')); await settle();
+  w.SelahActions.bkTab(D.querySelector('[data-tab="budget"]')); await settle();
+
+  const bud = D.getElementById('bk-budget');
+  const v = bud.textContent;
+  ok('🧾 a category lists the things you plan to buy', /Sugar/.test(v) && /Rice/.test(v));
+  ok('🔑 the food budget is floored at the sum of its items (10,000)',
+     D.querySelector('[data-bg="food"]').value === '10000' && D.querySelector('[data-bg="food"]').min === '10000');
+  ok('🔑 an item already on a shopping list is marked', /on a list/.test(v));
+  ok('...an item NOT on a list offers to add it to shopping', !!bud.querySelector('[data-action="biToShop"]'));
+
+  // add a planned item
+  D.getElementById('bi-name-food').value = 'Soap';
+  D.getElementById('bi-amt-food').value = '3000';
+  await w.SelahActions.biAdd({ dataset: { cat: 'food' } }); await settle();
+  ok('🧾 adding a planned item POSTs its category, name and estimate',
+     o.biAdded && o.biAdded.category === 'food' && o.biAdded.name === 'Soap' && o.biAdded.estimate === 3000);
+
+  // 🛒 push a planned item onto a shopping list
+  await w.SelahActions.biToShop({ dataset: { id: 'bi1' } }); await settle();
+  ok('🛒 add-to-shopping POSTs to the item\'s to-shopping endpoint', /\/budget-items\/bi1\/to-shopping$/.test(o.biToShop || ''));
+
+  // remove one
+  await w.SelahActions.biDel({ dataset: { id: 'bi1' } }); await settle();
+  ok('🧾 removing a planned item DELETEs it', /\/budget-items\/bi1$/.test(o.biDeleted || ''));
 }
 
 // ── 🔴 A SAVED BUDGET LOOKS DIFFERENT FROM A SUGGESTED ONE ────────────────
@@ -1789,7 +1838,7 @@ section('🔑 A LUMP LANDS IN FULL, IN THE MONTH IT IS DUE — AND ZERO IN THE O
        /Next around 2026-09-12/.test(D.getElementById('bk-budget').textContent) &&
        /1,200,000/.test(D.getElementById('bk-budget').textContent));
     ok('...and it is still just a row, like every other row',
-       [...D.querySelectorAll('#bk-budget tbody tr')].every((r) => r.children.length === 6));
+       [...D.querySelectorAll('#bk-budget tbody tr:not(.bi-row)')].every((r) => r.children.length === 6));
     ok('🔴 ...and NOWHERE does a 400,000 monthly slice appear — that figure is wrong in every month',
        !/400,000/.test(D.getElementById('bk-budget').textContent));
   }

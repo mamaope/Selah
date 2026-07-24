@@ -25,6 +25,7 @@
   let cats = [];
   let accts = [];
   let bkGoals = [];
+  let bkBudgetItems = {};
 
   const today = () => new Date().toISOString().slice(0, 10);
 
@@ -194,6 +195,7 @@
     cats = c.ok ? c.categories : [];
     accts = p.accounts || [];
     bkGoals = p.goals || [];
+    bkBudgetItems = p.budgetItems || {};
     allEntries = p.entries || [];
     allBudgets = p.budgets || [];
     await loadPriceBook();
@@ -575,10 +577,36 @@
 
           const gap = value - got;                       // out: left. in: still to come.
 
+          // 🔑 PLANNED ITEMS — the things you mean to buy in this category this month.
+          //    The budget is the sum of them (floor), and may be set higher.
+          const items = (bkBudgetItems[c.key]) || [];
+          const itemsSum = items.reduce((a, i) => a + Number(i.estimate || 0), 0);
+          const shownValue = Math.max(Number(value || 0), itemsSum);
+
+          const planRow = !IN
+            ? '<tr class="bi-row"><td colspan="6" style="padding:.2rem .6rem .7rem 1.2rem">' +
+                '<details' + (items.length ? ' open' : '') + '>' +
+                  '<summary class="src">Plan the items' + (items.length ? ' (' + items.length + ' · ' + fmt(itemsSum) + ')' : '') + '</summary>' +
+                  (items.length
+                    ? '<ul class="cal-items" style="margin:.3rem 0">' + items.map((i) =>
+                        '<li><span class="cal-label">' + esc(i.name) + '</span> <strong>' + fmt(i.estimate) + '</strong> ' +
+                        (i.onList ? '<span class="pill ok">on a list</span>' : '<button class="link" data-action="biToShop" data-id="' + esc(i.id) + '">add to shopping</button>') +
+                        ' <button class="link" data-action="biDel" data-id="' + esc(i.id) + '" aria-label="Remove">✕</button></li>').join('') + '</ul>'
+                    : '') +
+                  '<div class="row" style="gap:.4rem;align-items:flex-end;flex-wrap:wrap">' +
+                    '<div><label>Item</label><input type="text" id="bi-name-' + esc(c.key) + '" placeholder="Sugar, soap, airtime"></div>' +
+                    '<div><label>Est. (UGX)</label><input type="number" id="bi-amt-' + esc(c.key) + '" placeholder="10000"></div>' +
+                    '<button class="ghost" data-action="biAdd" data-cat="' + esc(c.key) + '">Add item</button>' +
+                  '</div>' +
+                '</details>' +
+              '</td></tr>'
+            : '';
+
           return '<tr' + (isSuggested ? ' class="is-draft"' : '') + '>' +
             '<td class="wide">' + catCell(c) +
               (isSuggested ? ' <span class="pill draft">suggested</span>' : '') + '</td>' +
-            '<td class="num"><input type="number" data-bg="' + esc(c.key) + '" value="' + (value || 0) + '" style="max-width:8rem"></td>' +
+            '<td class="num"><input type="number" data-bg="' + esc(c.key) + '" value="' + shownValue + '" min="' + itemsSum + '" style="max-width:8rem">' +
+              (itemsSum ? '<div class="src">≥ ' + fmt(itemsSum) + ' planned</div>' : '') + '</td>' +
             '<td class="num">' + fmt(got) + '</td>' +
             '<td class="num">' + (isSaved ? fmt(gap) : '—') +
               (isSaved && !IN && got > value ? ' <span class="pill over">over by ' + fmt(got - value) + '</span>' : '') +
@@ -589,7 +617,7 @@
             '<td class="note" title="' + esc(note) + '">' + esc(note) +
               (isSaved ? ' <button class="link" data-action="bgDel" data-id="' + esc(g.id) + '" aria-label="Remove this budget">Remove</button>' : '') +
             '</td>' +
-          '</tr>';
+          '</tr>' + planRow;
         }).join('') +
         '</tbody></table></div>';
     };
@@ -687,6 +715,32 @@
     $('bg-msg').innerHTML = '<span class="saved">✓ Removed.</span> That budget is cleared. The category and its transactions are untouched.';
     await refresh();
     renderBudget(lastBudget);
+  };
+
+  A.biAdd = async (el) => {
+    const key = el.dataset.cat;
+    const name = $('bi-name-' + key).value.trim();
+    const estimate = Number($('bi-amt-' + key).value || 0);
+    if (!name) { $('bg-msg').textContent = 'What do you plan to buy?'; return; }
+    const from = $('bg-from').value, to = $('bg-to').value;
+    if (!from || !to) { $('bg-msg').textContent = 'Set the budget period first.'; return; }
+    const r = await API.addBudgetItem(current.id, { category: key, name, estimate, startsOn: from, endsOn: to });
+    if (!handle(r)) return;
+    if (!r.ok) { $('bg-msg').textContent = r.headline || 'That did not work.'; return; }
+    await refresh();
+  };
+
+  A.biToShop = async (el) => {
+    const r = await API.budgetItemToShop(current.id, el.dataset.id);
+    if (!handle(r)) return;
+    if (r.ok) $('bg-msg').innerHTML = '<span class="saved">✓ Added to your shopping list.</span> Mark it bought there when you buy it.';
+    await refresh();
+  };
+
+  A.biDel = async (el) => {
+    const r = await API.delBudgetItem(current.id, el.dataset.id);
+    if (!handle(r)) return;
+    await refresh();
   };
 
   /** Save the whole table. Zero means "no budget", and deletes any that was there. */
@@ -1132,6 +1186,13 @@
   // ═══════════════════════════════════════════════════════════════════════════
   // 🔑 "WHEN DO I NEXT REFILL GAS?"
   // ═══════════════════════════════════════════════════════════════════════════
+  A.fcToBudget = async (el) => {
+    const win = monthWindow();
+    const r = await API.addBudgetItem(current.id, { category: el.dataset.cat, name: el.dataset.name, estimate: Number(el.dataset.amt || 0), startsOn: win.from, endsOn: win.to });
+    if (!handle(r)) return;
+    if (r.ok) { el.textContent = '✓ Added to budget'; el.disabled = true; }
+  };
+
   A.bkForecast = async () => {
     const box = $('bk-forecast');
     box.hidden = false;
@@ -1146,13 +1207,15 @@
 
     box.innerHTML =
       '<div class="card">' +
-        '<h3>What is coming up</h3>' +
+        '<h3>Expected this month</h3>' +
+        '<p class="muted">These repeat often enough to expect again. Add any to your budget — it lands in the right category.</p>' +
         (up.items && up.items.length
           ? '<ul class="cal-items">' + up.items.map((i) => (
               '<li><span class="cal-label">' + esc(i.label) + '</span> ' +
               '<span class="' + (i.overdue ? 'warn' : 'muted') + '">' +
                 esc(i.nextDue) + (i.overdue ? ' — overdue by ' + i.overdueByDays + ' days' : ' — in ' + i.daysAway + ' days') +
-              '</span> <span class="muted">~' + fmt(i.typicalAmount) + '</span>' +
+              '</span> <span class="muted">~' + fmt(i.typicalAmount) + '</span> ' +
+              (i.category ? '<button class="ghost" data-action="fcToBudget" data-cat="' + esc(i.category) + '" data-name="' + esc(i.label) + '" data-amt="' + Number(i.typicalAmount || 0) + '">Add to budget</button>' : '') +
               '<div class="src">' + esc(i.says) + '</div></li>'
             )).join('') + '</ul>'
           : '<p class="muted">Nothing repeats often enough yet for us to see a pattern.</p>') +
